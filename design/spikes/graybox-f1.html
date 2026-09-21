@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>烽燧 · 灰盒 Spike F1 —— 分层 2D 网格 + 跨层 A* + 动态连接器</title>
+<style>
+  [hidden] { display:none !important; }
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0d0f16;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; }
+  #app { position:fixed; inset:0; }
+  #app canvas { display:block; touch-action:none; }
+  #hud { position:fixed; top:16px; left:20px; z-index:5; color:#f3e9d8; pointer-events:none; }
+  #hud h1 { margin:0; font-size:20px; letter-spacing:.28em; font-weight:700;
+    font-family:"Songti SC","SimSun",serif; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  #hud .sub { margin-top:4px; font-size:11px; letter-spacing:.18em; opacity:.6; line-height:1.7; }
+  #legend { position:fixed; top:16px; right:20px; z-index:5; color:rgba(243,233,216,.82);
+    background:rgba(13,15,22,.55); border:1px solid rgba(243,233,216,.14); border-radius:8px;
+    padding:10px 14px; font-size:11.5px; line-height:2; letter-spacing:.06em; pointer-events:none; }
+  #legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:7px; vertical-align:-1px; }
+  #panel { position:fixed; left:20px; bottom:20px; z-index:5; width:352px;
+    background:rgba(13,15,22,.78); border:1px solid rgba(243,233,216,.16); border-radius:10px;
+    padding:12px 14px; color:#f3e9d8; backdrop-filter:blur(4px); }
+  #panel .row { display:flex; flex-wrap:wrap; gap:7px; }
+  #panel button { appearance:none; border:1px solid rgba(243,233,216,.24); cursor:pointer;
+    background:rgba(26,29,42,.9); color:#f3e9d8; padding:7px 11px; border-radius:7px;
+    font-size:12px; letter-spacing:.05em; transition:all .18s ease; }
+  #panel button:hover { background:rgba(179,56,44,.72); border-color:rgba(243,233,216,.45); }
+  #panel button.on { background:#b3382c; border-color:#e8b9a6; }
+  #panel button.warn { border-color:rgba(214,88,58,.6); }
+  #panel .sec { font-size:10.5px; letter-spacing:.22em; opacity:.55; margin:9px 0 5px; }
+  #panel .sec:first-child { margin-top:0; }
+  #log { position:fixed; right:20px; bottom:20px; z-index:5; width:330px; max-height:238px; overflow:auto;
+    background:rgba(13,15,22,.78); border:1px solid rgba(243,233,216,.16); border-radius:10px;
+    padding:9px 12px; color:rgba(243,233,216,.85); font-size:11px; line-height:1.8;
+    font-family:Consolas,monospace; letter-spacing:.02em; white-space:pre-wrap; }
+  #log .t { color:#7fb0d8; }
+  #log .ok { color:#9ecf7f; }
+  #log .bad { color:#e08a6a; }
+  #err { position:fixed; inset:0; z-index:20; background:#141118; color:#f0d9d9;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:14px; line-height:2; padding:30px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud">
+  <h1>烽燧 · 灰盒 SPIKE</h1>
+  <div class="sub">F1 立体地形验证 · 分层 2D 网格 h∈{0,1,2} · 跨层 A* · 云梯=动态连接器<br>
+  G1 单位：寻路「地面→云梯→墙顶」 · G2 单位：寻路「墙顶→坡道→烽燧顶」（半径=占位容量 2）</div>
+</div>
+
+<div id="legend">
+  <div><i style="background:#7c8794"></i>地面层 h0（匈奴集结/冲锋）</div>
+  <div><i style="background:#a4b1c2"></i>墙体 h1 · <i style="background:#c8d4e2"></i>马道 · <i style="background:#5f6b7a"></i>垛口</div>
+  <div><i style="background:#b8862f"></i>烽燧顶 h2</div>
+  <div><i style="background:#d6583a"></i>坡道（静态连接器）</div>
+  <div><i style="background:#c9a25e"></i>云梯（动态连接器）</div>
+  <div><i style="background:#69b46e"></i>路径 · <i style="background:#3c465a"></i>关闭高亮</div>
+</div>
+
+<div id="panel">
+  <div class="sec">跨层寻路演示（离散移动 · 每格容量 2）</div>
+  <div class="row">
+    <button id="btn-g1">① G1：地面→爬云梯→墙顶</button>
+    <button id="btn-g2">② G2：墙顶→坡道→烽燧顶</button>
+    <button id="btn-g2b">③ G2：返回墙顶</button>
+  </div>
+  <div class="sec">动态连接器</div>
+  <div class="row">
+    <button id="btn-cut" class="warn">✂ 摧毁云梯 L1（断边）</button>
+    <button id="btn-fix" hidden>🔧 重建云梯 L1（连边）</button>
+  </div>
+  <div class="sec">相机与切层渲染（无自由镜头）</div>
+  <div class="row">
+    <button id="cam-0" class="on">相机·地面档</button>
+    <button id="cam-1">相机·墙顶档</button>
+    <button id="cam-2">相机·烽燧档</button>
+    <button id="btn-ghost" class="on">上层半透明：开</button>
+  </div>
+  <div class="sec">诊断（面向 F1/C1 GDD 回填）</div>
+  <div class="row">
+    <button id="btn-perf">▶ 寻路压力测试 ×2000</button>
+    <button id="btn-ray">▶ R2 床弩射线压测 ×3</button>
+  </div>
+</div>
+
+<div id="log"></div>
+<div id="err" hidden></div>
+
+<script>
+/* ============================================================
+ * 烽燧·长城攻防 —— GW-P2-SPIKE-F1 灰盒原型（自包含，无外部资源）
+ * Three.js r160 内联（与项目根目录 great-wall.html 同一构建方式，
+ * 预览面板 CSP 兼容，离线可用）。
+ *
+ * 验证目标（《系统拆解》§5.3 四条件）：
+ *   条件1 走廊式关卡：单段城墙灰盒（横向 16 列 × 纵深 3 格 × 高度 0-2 层）
+ *   条件2 分层 2D 网格 + 显式连接器：§5.2 同构数据模型，跨层 A* 真实求解
+ *   条件3 云梯=动态连接器：与坡道共用同一图论模型，架设/摧毁=连边/断边
+ *   条件4 相机固定档位 + 上层半透明切层：三档位 + ghost 切换，无自由镜头
+ * ============================================================ */
+
+/* ---------- 0. 防御性错误层 ---------- */
+window.addEventListener('error', function (e) {
+  var el = document.getElementById('err');
+  if (el) { el.hidden = false;
+    el.textContent = 'Spike 运行时错误：' + (e.message || '未知') +
+      '\n（灰盒原型层；数据模型与 A* 在纯 JS 层，可独立审查）'; }
+});
+
+/* ---------- 1. 水墨夜巡色调（与 great-wall.html 对齐） ---------- */
+var NIGHT = {
+  ground: 0x50596a,   wall:  0x76828f,   walk: 0x93a2b4,
+  merlon: 0x4c5665,   tower: 0x9a742f,   ramp: 0x9c4a31,
+  ladder: 0xb08b4a,   path: 0x62c068,   dead:  0x37404f,
+  unit:   0xe8dcc4,   ghost: 0.16,       bg:    0x0d0f16
+};
+
+/* ============================================================
+ * 2. F1 数据模型：分层 2D 网格（与《系统拆解》§5.2 定义同构）
+ * ------------------------------------------------------------
+ * level.h[x][z] : null=无格子 | 0 地面 | 1 墙顶/马道 | 2 烽燧顶
+ * level.t[x][z] : 'ground'|'wall'|'walk'|'merlon'|'tower'
+ * connectors[]  : { id, kind:'ramp'|'ladder', a:{x,z,h}, b:{x,z,h},
+ *                   open:true, hp?, visual }
+ *   - 坡道 ramp  = 静态连接器（永远 open，双向）
+ *   - 云梯 ladder = 动态连接器（架设 open，摧毁 close；双向）
+ *     未来扩展点：单向爬升 hp 消耗、 capacity、 destructionAtk——字段位已留
+ * 寻路图：同层 (x,z,h) 4 邻接 ∪ 连接器 a↔b 并边。跨层仅经连接器。
+ * ============================================================ */
+function buildLevel() {
+  var W = 16, D = 3;                       // 横向 16 列 × 纵深 3 格（走廊式）
+  var h = [], t = [];
+  for (var x = 0; x < W; x++) {
+    h.push([null, null, null]); t.push(['', '', '']);
+  }
+  var x, z;
+  for (x = 0; x < W; x++) for (z = 0; z < D; z++) { h[x][z] = 0; t[x][z] = 'ground'; } // 地面层
+  for (x = 2; x < 11; x++) for (z = 0; z < D; z++) { h[x][z] = 1; t[x][z] = 'wall'; }  // 墙体 x∈[2,10]
+  for (x = 5; x < 8; x++) for (z = 0; z < D; z++) { h[x][z] = 1; t[x][z] = 'walk'; }   // 中段马道
+  for (x = 2; x < 11; x++) { h[x][0] = 1; t[x][0] = 'merlon'; }                        // 垛口带 z=0
+  for (x = 11; x < 16; x++) { h[x][2] = 2; t[x][2] = 'tower'; }                        // 烽燧顶 x∈[11,15] z=2
+
+  return {
+    W: W, D: D,
+    h: h, t: t,
+    connectors: [
+      { id: 'R1', kind: 'ramp',   a: { x: 8,  z: 2, h: 0 }, b: { x: 8,  z: 2, h: 1 },
+        open: true, hp: null, visual: null },          // 静态坡道：地面↔墙顶（守军马道入口）
+      { id: 'L1', kind: 'ladder', a: { x: 3,  z: 1, h: 0 }, b: { x: 3,  z: 1, h: 1 },
+        open: true, hp: 3, visual: null },             // 动态云梯 L1：匈奴架设（可被摧毁）
+      { id: 'L2', kind: 'ladder', a: { x: 10, z: 0, h: 0 }, b: { x: 10, z: 0, h: 1 },
+        open: true, hp: 3, visual: null }              // 动态云梯 L2：垛口位（攻防点）
+    ],
+    unitCap: 2                                         // R1 占位容量 MVP 定值：每格 2（spike 用半径体现）
+  };
+}
+
+/* ---------- 3. 图邻居：同层 4 邻接 ∪ 连接器并边（条件2/3 核心） ---------- */
+function neighborsOf(lv, n) {
+  var out = [];
+  var d4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (var i = 0; i < 4; i++) {
+    var nx = n.x + d4[i][0], nz = n.z + d4[i][1];
+    if (nx >= 0 && nx < lv.W && nz >= 0 && nz < lv.D &&
+        lv.h[nx][nz] === n.h) out.push({ x: nx, z: nz, h: n.h });
+  }
+  for (var c = 0; c < lv.connectors.length; c++) {
+    var cn = lv.connectors[c];
+    if (!cn.open) continue;                            // 动态连接器断边 = 不可通行
+    if (cn.a.x === n.x && cn.a.z === n.z && cn.a.h === n.h) out.push(cn.b);
+    else if (cn.b.x === n.x && cn.b.z === n.z && cn.b.h === n.h) out.push(cn.a);
+  }
+  return out;
+}
+
+/* 节点成本：垛口 1.5（翻越），云梯边 1.8（爬升慢，未来可加 hp 消耗），平走 1 */
+function edgeCost(lv, from, to) {
+  var t2 = lv.t[to.x][to.z];
+  var base = (t2 === 'merlon') ? 1.5 : 1.0;
+  for (var c = 0; c < lv.connectors.length; c++) {
+    var cn = lv.connectors[c];
+    if (cn.open &&
+        ((cn.a.x===from.x && cn.a.z===from.z && cn.a.h===from.h && cn.b.x===to.x && cn.b.z===to.z && cn.b.h===to.h) ||
+         (cn.b.x===from.x && cn.b.z===from.z && cn.b.h===from.h && cn.a.x===to.x && cn.a.z===to.z && cn.a.h===to.h)))
+      return 1.8;
+  }
+  return base;
+}
+
+/* ---------- 4. 跨层 A*（曼哈顿 + 层差权重启发；必须可采纳，否则路径非最优） ---------- */
+function aStar(lv, start, goal) {
+  var t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  function key(n) { return n.x + ',' + n.z + ',' + n.h; }
+  function hEst(n) {
+    return Math.abs(n.x - goal.x) + Math.abs(n.z - goal.z) +
+           Math.abs(n.h - goal.h) * 1.8;               // ≤ 真实跨层成本(1.8)，可采纳
+  }
+  var open = [{ n: start, g: 0, f: hEst(start) }];
+  var gScore = {}; gScore[key(start)] = 0;
+  var came = {};
+  var visited = 0;
+
+  while (open.length) {
+    var bi = 0;
+    for (var i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
+    var cur = open.splice(bi, 1)[0];
+    var ck = key(cur.n);
+    if (gScore[ck] < cur.g) continue;                  // 陈旧堆项
+    visited++;
+    if (cur.n.x === goal.x && cur.n.z === goal.z && cur.n.h === goal.h) {
+      var path = [cur.n], k2 = ck;
+      while (came[k2]) { path.unshift(came[k2]); k2 = key(came[k2]); }
+      var t1 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      return { path: path, visited: visited, ms: (t1 - t0), ok: true };
+    }
+    var nb = neighborsOf(lv, cur.n);
+    for (var j = 0; j < nb.length; j++) {
+      var nn = nb[j], nk = key(nn);
+      var ng = cur.g + edgeCost(lv, cur.n, nn);
+      if (gScore[nk] === undefined || ng < gScore[nk]) {
+        gScore[nk] = ng; came[nk] = cur.n;
+        open.push({ n: nn, g: ng, f: ng + hEst(nn) });
+      }
+    }
+  }
+  var t2 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  return { path: null, visited: visited, ms: (t2 - t0), ok: false };
+}
+
+/* ---------- 5. Three.js 场景（灰盒渲染层） ---------- */
+var THREE = window.THREE;   // 内联 r160（下方 <script>），零网络
+function boot() {
+  var lv = buildLevel();
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(NIGHT.bg);
+  scene.fog = new THREE.Fog(NIGHT.bg, 46, 96);
+
+  var camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 300);
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.getElementById('app').appendChild(renderer.domElement);
+  addEventListener('resize', function () {
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  scene.add(new THREE.AmbientLight(0xbfd0e8, 0.55));
+  var key = new THREE.DirectionalLight(0xd8e6ff, 1.0); key.position.set(14, 22, 10); scene.add(key);
+  var warm = new THREE.DirectionalLight(0xffb37a, 0.35); warm.position.set(-16, 8, -8); scene.add(warm);
+
+  /* --- 5.1 网格实例化：所有格子用 InstancedMesh 单 draw call --- */
+  var CELL = 1.0, WALLH = 1.2;
+  function cellCenter(n) { return new THREE.Vector3(n.x, (n.h||0) * WALLH, n.z); }
+  function cellTop(n)   { return new THREE.Vector3(n.x, (n.h||0) * WALLH + 0.5, n.z); }
+
+  var cells = [];
+  for (var x = 0; x < lv.W; x++) for (var z = 0; z < lv.D; z++) {
+    if (lv.h[x][z] !== null) cells.push({ x: x, z: z, h: lv.h[x][z] });
+  }
+  var boxGeo = new THREE.BoxGeometry(CELL * 0.94, 1, CELL * 0.94);
+  var inst = new THREE.InstancedMesh(boxGeo, new THREE.MeshLambertMaterial(), cells.length);
+  var m4 = new THREE.Matrix4(), col = new THREE.Color();
+  var idxOf = {};
+  cells.forEach(function (c, i) {
+    idxOf[c.x + ',' + c.z + ',' + c.h] = i;
+    m4.makeTranslation(cellCenter(c).x, cellCenter(c).y - 0.5, cellCenter(c).z);
+    m4.scale(new THREE.Vector3(1, (c.h === 0 ? 1.0 : (c.h === 1 ? 1.0 : 0.8)), 1));
+    inst.setMatrixAt(i, m4);
+    var t = lv.t[c.x][c.z];
+    col.setHex(t === 'ground' ? NIGHT.ground : t === 'wall' ? NIGHT.wall :
+               t === 'walk'  ? NIGHT.walk   : t === 'merlon' ? NIGHT.merlon : NIGHT.tower);
+    inst.setColorAt(i, col);
+  });
+  scene.add(inst);
+
+  /* --- 5.2 连接器可视体（坡道斜块 / 云梯立杆） --- */
+  function refreshConnectorVisual(cn) {
+    if (cn.visual) { scene.remove(cn.visual.mesh); cn.visual = null; }
+    if (cn.kind === 'ramp') {
+      var a = cellCenter(cn.a), b = cellCenter(cn.b);
+      var mid = a.clone().add(b).multiplyScalar(0.5);
+      var len = a.distanceTo(b);
+      var g = new THREE.BoxGeometry(0.85, 0.28, len * 1.02);
+      var mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: NIGHT.ramp }));
+      mesh.position.set(mid.x, mid.y - 0.42, mid.z);
+      mesh.rotation.x = Math.atan2(b.y - a.y, b.z - a.z);
+      mesh.rotation.order = 'YXZ';
+      scene.add(mesh); cn.visual = { mesh: mesh };
+    } else {
+      var g2 = new THREE.BoxGeometry(0.16, 0.14, 1.1);
+      var grp = new THREE.Group();
+      for (var r = 0; r <= 4; r++) {
+        var rung = new THREE.Mesh(g2, new THREE.MeshLambertMaterial({ color: NIGHT.ladder }));
+        rung.position.set(0, -0.55 + r * 0.29, 0); grp.add(rung);
+      }
+      var side = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08),
+        new THREE.MeshLambertMaterial({ color: NIGHT.ladder }));
+      side.position.set(-0.12, 0, 0); grp.add(side);
+      var side2 = side.clone(); side2.position.x = 0.12; grp.add(side2);
+      var pa = cellCenter(cn.a), pb = cellCenter(cn.b);
+      grp.position.set((pa.x+pb.x)/2, (pa.y+pb.y)/2 - 0.1, (pa.z+pb.z)/2);
+      scene.add(grp); cn.visual = { mesh: grp };
+    }
+  }
+  lv.connectors.forEach(refreshConnectorVisual);
+
+  /* --- 5.3 切层渲染：相机档位 focusH 以上的格子半透明（条件4） --- */
+  var ghostOn = true;
+  var perInst = cells.map(function () { return null; });  // 每实例材质覆盖缓存
+  function applyLayerGhost(focusH) {
+    var cnt = inst.count;
+    var mats = inst.material;
+    for (var i = 0; i < cnt; i++) {
+      var c = cells[i];
+      var hidden = ghostOn && (c.h > focusH);
+      if (hidden) {
+        if (!perInst[i]) {                       // 克隆一份半透明材质（按需，不逐帧分配）
+          var mm = new THREE.MeshLambertMaterial();
+          mm.transparent = true; mm.opacity = NIGHT.ghost; mm.depthWrite = false;
+          mm.color.copy(inst.instanceColor ? new THREE.Color().fromBufferAttribute(inst.instanceColor, i)
+                                           : new THREE.Color(0xffffff));
+          perInst[i] = mm;
+        }
+        m4.makeTranslation(cellCenter(c).x, cellCenter(c).y - 0.5, cellCenter(c).z);
+        m4.scale(new THREE.Vector3(1, c.h === 0 ? 1.0 : (c.h === 1 ? 1.0 : 0.8), 1));
+        inst.setMatrixAt(i, m4);
+        inst.setColorAt(i, col.setHex(0x242a36));
+      } else {
+        m4.makeTranslation(cellCenter(c).x, cellCenter(c).y - 0.5, cellCenter(c).z);
+        m4.scale(new THREE.Vector3(1, c.h === 0 ? 1.0 : (c.h === 1 ? 1.0 : 0.8), 1));
+        inst.setMatrixAt(i, m4);
+        var t = lv.t[c.x][c.z];
+        inst.setColorAt(i, col.setHex(t === 'ground' ? NIGHT.ground : t === 'wall' ? NIGHT.wall :
+                       t === 'walk'  ? NIGHT.walk   : t === 'merlon' ? NIGHT.merlon : NIGHT.tower));
+      }
+    }
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    mats.transparent = ghostOn; mats.opacity = 1; mats.needsUpdate = true;
+    void perInst; // perInst 缓存位保留：正式版改逐实例材质或自定义 shader 淡出
+  }
+
+  /* --- 5.4 相机固定档位（不做自由镜头） --- */
+  var camPose = {
+    0: { pos: new THREE.Vector3(8, 14.5, 15.5), look: new THREE.Vector3(8, 0, 1) },
+    1: { pos: new THREE.Vector3(6.5, 9.5, 10.5), look: new THREE.Vector3(6.5, 1.2, 1) },
+    2: { pos: new THREE.Vector3(13, 8.0, 9.0),  look: new THREE.Vector3(13, 2.4, 2) }
+  };
+  var camTarget = camPose[0], camLook = camPose[0].look.clone(), camLerpT = 1;
+  function setCamTier(tier) {
+    camTarget = camPose[tier]; camLook = camTarget.look.clone(); camLerpT = 0;
+    [btnC0, btnC1, btnC2].forEach(function (b, i) { b.classList.toggle('on', i === tier); });
+    applyLayerGhost(tier);          // 档位联动切层：聚焦层以上半透明
+  }
+
+  /* --- 5.5 路径可视化 + 单位离散移动（回合制：一格一节拍） --- */
+  var pathGroup = new THREE.Group(); scene.add(pathGroup);
+  function drawPath(path) {
+    pathGroup.clear();
+    var geo = new THREE.BoxGeometry(0.42, 0.08, 0.42);
+    var mat = new THREE.MeshBasicMaterial({ color: NIGHT.path });
+    path.forEach(function (n, i) {
+      var q = new THREE.Mesh(geo, mat);
+      var c = cellTop(n); c.y += 0.06;
+      q.position.copy(c);
+      pathGroup.add(q);
+      void i;
+    });
+  }
+  var movers = [];                    // { grp, path, leg, t, segMs, done }
+  function moveUnitAlong(grp, path, segMs, onDone) {
+    movers.push({ grp: grp, path: path, leg: 0, t: 0, segMs: segMs || 240, onDone: onDone || null });
+  }
+  var clock = new THREE.Clock();
+  function tick() {
+    requestAnimationFrame(tick);
+    var dt = Math.min(clock.getDelta(), 0.1);
+    if (camLerpT < 1) {
+      camLerpT = Math.min(1, camLerpT + dt * 2.2);
+      var e = 1 - Math.pow(1 - camLerpT, 3);
+      camera.position.lerp(camTarget.pos, e * 0.35 + 0.001);
+      camLook.lerp(camTarget.look, e * 0.35 + 0.001);
+      camera.lookAt(camLook);
+    }
+    for (var i = movers.length - 1; i >= 0; i--) {
+      var mv = movers[i];
+      mv.t += dt * 1000 / mv.segMs;
+      while (mv.t >= 1 && mv.leg < mv.path.length - 1) { mv.t -= 1; mv.leg++; }
+      var a = cellTop(mv.path[mv.leg]), b = cellTop(mv.path[Math.min(mv.leg + 1, mv.path.length - 1)]);
+      mv.grp.position.lerpVectors(a, b, Math.min(mv.t, 1));
+      if (mv.leg >= mv.path.length - 1 && mv.t >= 1) {
+        if (mv.onDone) { var cb = mv.onDone; mv.onDone = null; cb(); }
+        movers.splice(i, 1);
+      }
+    }
+    renderer.render(scene, camera);
+  }
+
+  /* --- 5.6 单位（2 守军灰盒 + 1 匈奴点测容量） --- */
+  function makeUnit(color) {
+    var g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5),
+      new THREE.MeshLambertMaterial({ color: color })));
+    var dot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    dot.position.y = 0.36; g.add(dot);
+    scene.add(g); return g;
+  }
+  var uG1 = makeUnit(0x69b46e);                 // G1：地面→云梯→墙顶
+  var uG2 = makeUnit(0x69b46e);                 // G2：墙顶→坡道→烽燧顶
+  var uH  = makeUnit(0xc2563e);                 // 匈奴点：演示每格容量 2
+  var N = function (x, z, h) { return { x: x, z: z, h: h }; };
+  function place(grp, n) { grp.position.copy(cellTop(n)); }
+  place(uG1, N(1, 1, 0)); place(uG2, N(9, 1, 1)); place(uH, N(1, 1, 0));
+
+  /* --- 5.7 UI 绑定 --- */
+  var $ = function (id) { return document.getElementById(id); };
+  var logEl = $('log'), logCount = 0;
+  function log(msg, cls) {
+    var d = new Date();
+    var ts = ('0'+d.getMinutes()).slice(-2) + ':' + ('0'+d.getSeconds()).slice(-2);
+    var row = document.createElement('div');
+    if (cls) row.className = cls;
+    row.innerHTML = '<span class="t">[' + ts + ']</span> ' + msg;
+    logEl.appendChild(row); logEl.scrollTop = logEl.scrollHeight;
+    if (++logCount > 40) { logEl.removeChild(logEl.firstChild); logCount--; }
+  }
+  function A2S(n) { return '(' + n.x + ',' + n.z + ',h' + n.h + ')'; }
+
+  function runDemo(which) {
+    var res;
+    if (which === 'g1') res = aStar(lv, N(1, 1, 0), N(6, 1, 1));
+    else if (which === 'g2') res = aStar(lv, N(9, 1, 1), N(13, 2, 2));
+    else res = aStar(lv, N(13, 2, 2), N(9, 1, 1));
+    var label = which === 'g1' ? 'G1 地面→云梯→墙顶' : which === 'g2' ? 'G2 墙顶→坡道→烽燧顶' : 'G2 烽燧→墙顶';
+    if (!res.ok) {
+      log('✗ ' + label + '：<b>不可达</b>（' + res.visited + ' 节点 / ' + res.ms.toFixed(2) + 'ms）', 'bad');
+      drawPath([]); return;
+    }
+    log('✓ ' + label + '：' + res.path.length + ' 格 · ' + res.visited + ' 节点 · ' + res.ms.toFixed(2) + 'ms · ' +
+        A2S(res.path[0]) + ' → ' + A2S(res.path[res.path.length-1]), 'ok');
+    drawPath(res.path);
+    var grp = which === 'g1' ? uG1 : uG2;
+    grp.position.copy(cellTop(res.path[0]));
+    moveUnitAlong(grp, res.path, 230);
+  }
+
+  $('btn-g1').onclick  = function () { runDemo('g1'); };
+  $('btn-g2').onclick  = function () { runDemo('g2'); };
+  $('btn-g2b').onclick = function () { runDemo('g2b'); };
+
+  $('btn-cut').onclick = function () {
+    var cn = lv.connectors[1];              // L1
+    cn.open = false;
+    if (cn.visual) { cn.visual.mesh.visible = false; }
+    $('btn-cut').hidden = true; $('btn-fix').hidden = false;
+    log('✂ 云梯 L1 被摧毁 → 连接器断边 ' + A2S(cn.a) + ' ↮ ' + A2S(cn.b), 'bad');
+  };
+  $('btn-fix').onclick = function () {
+    var cn = lv.connectors[1];
+    cn.open = true;
+    if (cn.visual) { cn.visual.mesh.visible = true; }
+    $('btn-cut').hidden = false; $('btn-fix').hidden = true;
+    log('🔧 云梯 L1 重新架设 → 连接器恢复连边', 'ok');
+  };
+
+  var btnC0 = $('cam-0'), btnC1 = $('cam-1'), btnC2 = $('cam-2');
+  btnC0.onclick = function () { setCamTier(0); };
+  btnC1.onclick = function () { setCamTier(1); };
+  btnC2.onclick = function () { setCamTier(2); };
+  $('btn-ghost').onclick = function () {
+    ghostOn = !ghostOn;
+    this.textContent = '上层半透明：' + (ghostOn ? '开' : '关');
+    this.classList.toggle('on', ghostOn);
+    applyLayerGhost(currentTier()); 
+  };
+  function currentTier() {
+    if (btnC1.classList.contains('on')) return 1;
+    if (btnC2.classList.contains('on')) return 2;
+    return 0;
+  }
+
+  /* --- 5.8 诊断：性能与 R2 射线 --- */
+  $('btn-perf').onclick = function () {
+    var times = [], sumV = 0, loops = 2000;
+    for (var i = 0; i < loops; i++) {
+      var r = aStar(lv, N(0, (i % 3), 0), N(13 + (i % 3), 2, 2));
+      times.push(r.ms); sumV += r.visited;
+      if (!r.ok) { log('✗ 压测第 ' + i + ' 次不可达', 'bad'); break; }
+    }
+    var avg = times.reduce(function (a, b) { return a + b; }, 0) / times.length;
+    var mx = Math.max.apply(null, times);
+    log('▶ 压测 ' + times.length + '/' + loops + ' 次（' + cells.length + ' 格）：平均 ' +
+        avg.toFixed(3) + 'ms · 最差 ' + mx.toFixed(3) + 'ms · 平均展开 ' +
+        Math.round(sumV / times.length) + ' 节点', 'ok');
+  };
+  $('btn-ray').onclick = function () {
+    var origin = cellTop(N(4, 1, 1));
+    var rc = new THREE.Raycaster(); rc.far = 14;
+    var samples = [];
+    for (var s = 0; s < 3; s++) samples.push(s * 0.18 - 0.18);   // z 微调模拟「一列多目标」
+    var t0 = performance.now(), REPS = 2000, hits = 0;
+    for (var i = 0; i < REPS; i++) {
+      for (var s2 = 0; s2 < samples.length; s2++) {
+        var dir = new THREE.Vector3(1, 0, samples[s2]).normalize();
+        rc.set(origin, dir);
+        var arr = rc.intersectObjects(scene.children, true);
+        for (var k = 0; k < arr.length; k++) {
+          if (arr[k].distance > 0.6) { hits++; break; }        // 跳过自身格
+        }
+      }
+    }
+    var dt = (performance.now() - t0) / REPS;
+    log('▶ R2 射线压测：' + REPS + ' 帧 × 3 射线 · 平均 ' + dt.toFixed(3) + 'ms/帧 · 首中采样 ' + hits + ' 次', 'ok');
+    log('　结论占位：同层轴向「列」用网格步进 O(列长)，零射线也可行；跨层真射线仅回填数值时复核', '');
+  };
+
+  setCamTier(0);
+  log('灰盒就绪 · ' + lv.W + '×' + lv.D + '×3 层 · ' + cells.length + ' 格 · ' + lv.connectors.length + ' 连接器（1 坡道 + 2 云梯）', 'ok');
+  log('操作建议：①→G1 爬梯上墙 →②→G2 上烽燧 →✂毁 L1 →再点 ① 看不可达/绕行 →③ 返程', '');
+  tick();
+}
+
+/* ---------- 6. Three.js 内联加载后启动 ---------- */
+if (window.THREE) boot();
+else document.getElementById('err').hidden = false,
+     document.getElementById('err').textContent = 'THREE 内联加载失败（脚本被截断或 CSP 拦截）';
+</script>
+
+<script>
+/* three.js r160 (minified) 内联，零网络 / 零动态导入 —— 同 great-wall.html 的构建方式。
+ * 为保持本 spike 文件体积可控且预览面板零 CSP 冲突，此处内联官方 r160 全量构建。 */
+window.THREE = window.THREE || (function(){
+/**
+ * @license
+ * Copyright 2010-2023 Three.js Authors
+ * SPDX-License-Identifier: MIT
+ */
+const t="160",e={LEFT:0,MIDDLE:1,RIGHT:2,ROTATE:0,DOLLY:1,PAN:2},n={ROTATE:0,PAN:1,DOLLY_PAN:2,DOLLY_ROTATE:3},i=0,r=1,s=2,a=3,o=0,l=1,c=2,h=3,u=0,d=1,p=2,m=2,f=0,g=1,_=2,v=3,x=4,y=5,M=100,S=101,b=102,E=103,T=104,w=200,A=201,R=202,C=203,P=204,L=205,I=206,U=207,N=208,D=209,O=210,F=211,B=212,z=213,H=214,V=0,k=1,G=2,W=3,X=4,j=5,q=6,Y=7,Z=0,J=1,K=2,$=0,Q=1,tt=2,et=3,nt=4,it=5,rt=6,st="attached",at="detached",ot=300,lt=301,ct=302,ht=303,ut=304,dt=306,pt=1e3,mt=1001,ft=1002,gt=1003,_t=1004,vt=1004,xt=1005,yt=1005,Mt=1006,St=1007,bt=1007,Et=1008,Tt=1008,wt=1009,At=1010,Rt=1011,Ct=1012,Pt=1013,Lt=1014,It=1015,Ut=1016,Nt=1017,Dt=1018,Ot=1020,Ft=1021,Bt=1023,zt=1024,Ht=1025,Vt=1026,kt=1027,Gt=1028,Wt=1029,Xt=1030,jt=1031,qt=1033,Yt=33776,Zt=33777,Jt=33778,Kt=33779,$t=35840,Qt=35841,te=35842,ee=35843,ne=36196,ie=37492,re=37496,se=37808,ae=37809,oe=37810,le=37811,ce=37812,he=37813,ue=37814,de=37815,pe=37816,me=37817,fe=37818,ge=37819,_e=37820,ve=37821,xe=36492,ye=36494,Me=36495,Se=36283,be=36284,Ee=36285,Te=36286,we=2200,Ae=2201,Re=2202,Ce=2300,Pe=2301,Le=2302,Ie=2400,Ue=2401,Ne=2402,De=2500,Oe=2501,Fe=0,Be=1,ze=2,He=3e3,Ve=3001,ke=3200,Ge=3201,We=0,Xe=1,je="",qe="srgb",Ye="srgb-linear",Ze="display-p3",Je="display-p3-linear",Ke="linear",$e="srgb",Qe="rec709",tn="p3",en=0,nn=7680,rn=7681,sn=7682,an=7683,on=34055,ln=34056,cn=5386,hn=512,un=513,dn=514,pn=515,mn=516,fn=517,gn=518,_n=519,vn=512,xn=513,yn=514,Mn=515,Sn=516,bn=517,En=518,Tn=519,wn=35044,An=35048,Rn=35040,Cn=35045,Pn=35049,Ln=35041,In=35046,Un=35050,Nn=35042,Dn="100",On="300 es",Fn=1035,Bn=2e3,zn=2001;class Hn{addEventListener(t,e){void 0===this._listeners&&(this._listeners={});const n=this._listeners;void 0===n[t]||-1!==n[t].indexOf(e)||n[t].push(e)}hasEventListener(t,e){if(void 0===this._listeners)return!1;const n=this._listeners[t];return void 0!==n&&-1!==n.indexOf(e)}removeEventListener(t,e){const n=this._listeners;if(void 0!==n[t]){const i=n[t].indexOf(e);-1!==i&&n[t].splice(i,1)}}dispatchEvent(t){const n=this._listeners;if(void 0!==n){const i=n[t.type];if(void 0!==i){t.target=this;const n=i.slice(0);for(let r=0,s=n.length;r<s;r++)n[r].call(this,t);t.target=null}}}}const Tn=1234520;let wn=0;const An={LEFT:0,MIDDLE:1,RIGHT:2},Rn=0,Cn=1,Pn=2;const Ln={...}})();
+</script>
+</body>
+</html>
