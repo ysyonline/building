@@ -1,6 +1,6 @@
 # F2 回合与相位调度系统 · GDD
 
-> **状态**：v1.0.3-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #3
+> **状态**：v1.0.4-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #3
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.4.2-draft（§3.8 八 mutation 与事件流、§2.4.2 accessPolicy 消费契约）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.4-draft（§2.5 执行时序、§6.2 契约表）｜ 概念稿 §4 核心循环四相位（决策⑤建设不限时）
 > **范围红线**：本文只裁 F2——回合/相位状态机、相位内结算顺序、速度序调度规则、行动槽生命周期、相位级事件边界、胜负判定检查点。**不写**单位速度值与行动点经济（C2）、AI 计划内容（C8）、托管决策逻辑（C10）、建造/部署校验（C7）、粮饷数值（C6）、波次构成与入场时刻表（C9）。
@@ -223,7 +223,7 @@ interface DPhaseLedger {
 - `F2.2 ｜ 槽频次：slotsPerTurn(u) = 1（MVP 恒定；多行动模型为 C2 AP 经济，槽内消化）｜ 消费方：C2`
 - `F2.3 ｜ C→D 触发：exitC ⇔ (∀u∈order: slotClosed(u)) ∨ beaconDestroyed ｜ 消费方：状态机`
 - `F2.4 ｜ 判负：lose ⇔ beaconHP ≤ 0 ｜ beaconHP 由 C5 伤害写入/C3 修理，F2 只读｜ 检查点：C 内即时 + D④`
-- `F2.5 ｜ 判胜：win ⇔ wavesExhausted(C9 cursor) ∧ aliveEnemies(F1 snapshot) = 0 ｜ 检查点：D④`
+- `F2.5 ｜ 判胜：win ⇔ wavesExhausted ∧ aliveEnemies(F1 snapshot) = 0 ｜ wavesExhausted 定义权归 C9（C9.3：全部条目已处理 ∧ 顺延队列空——处理态谓词，非 cursor 簿记位置；cursor 前移固定位在 D⑤，若按簿记位置求值则末波胜利被迫滞后一回合）｜ 检查点：D④（求值先于 D⑤ 簿记）`
 - `F2.6 ｜ 回合推进：turn′ = turn + 1（仅 D→A 迁移时）｜ 消费方：F1 镜像/C9/C6`
 - `F2.7 ｜ 援军顺延：reinforce(entry) 失败 ⇔ F1.placeUnit 拒绝 → entry 进入 pendingReinforcements，下回合 D③ 首位重试 ｜ 消费方：C6/C9`
 
@@ -281,7 +281,7 @@ interface DPhaseLedger {
 | 时钟查询 | F2→全体 | `TurnQuery.current(): {turn, phase, nightIndex}` | ✅ |
 | 行动槽调度 | F2→C10/C8 | §9 前置契约清单（槽开启路由/模式切换时点/A 相位范围） | ✅ 本文裁定 |
 | 速度序数据 | C2→F2 | `speed(u)`、行动经济报告 `actionDone(u): boolean`、单位模式 `controlMode(u)` | ⚠ 待 C2 GDD 定签名（接口语义本文已锁） |
-| 波次入场钩子 | C9→F2 | B① 调 `C9.spawnForTurn(turn)` → 返回入场条目（F1 placeUnit 由 C9 调用） | ✅ 语义定，表归 C9 |
+| 波次入场钩子 | C9→F2 | B① 调 `C9.spawnForTurn(turn)` → 返回入场条目（占位经 C2.enterField→F1.placeUnit 白名单链完成，C2 §3.4 纪律）；D④ 判胜求值调 `C9Query.wavesExhausted()`；D⑤ 调 `C9.advanceCursor(turn)` 簿记前移 | ✅ 语义定，表归 C9（三签名 C9 v1.0 §6.2 已落） |
 | 收入/援军钩子 | C6→F2 | D②/D③ 调 C6 结算 API；援军时刻表与落点归 C6/C9 | ✅ 语义定 |
 | 烽燧耐久 | F3/C5→F2 | `beaconHP` 只读；`beacon_destroyed` 事件由 C5 写入侧发出 | ✅ |
 | 终局移交 | F2→X1 | `battle_won/lost` + 战局快照引用 | ✅ |
@@ -384,3 +384,4 @@ interface DPhaseLedger {
 | v1.0.1-draft | 2026-09-21 | **GW-P2-003 门修订（D-1，主理人批准）**：上游依据/对齐状态/SC-3/SC-4 引用升版 F1 v1.4.2、C1 v1.0.4（F1 §3.8 注记同步「六→八 mutation」）；§3.1 slotCursor 注释「每回合」→「每 C 相位」措辞精确化（MVP 回合与 C 相位一对一，语义以相位计） |
 | v1.0.2-draft | 2026-09-21 | **C4 v1.0 交割回填（§9.2 回填案，主理人验收代提）**：§10 OQ-3 销账——「设施不占单位行动槽」经 C4 §2.2 三点复核（快照/C10/E7 场景零改动）由临时口径转正式口径；F2 结构零改动 |
 | v1.0.3-draft | 2026-09-21 | **勘误（C6 v1.0 撰写期上报，主理人核验代提）**：§2.2-D③ 括注「§5-E6」→「§5-E13」（E6=留梯单位行动槽，援军顺延本体是 E13）；纯引用修正，零实质变更 |
+| v1.0.4-draft | 2026-09-21 | **C9 消费面精化（GW-P2-011 收官批，C9 作者文案、主理人核验代落）**：①§6.2「波次入场钩子」行替换——placeUnit 调用链表述对齐 C2 §3.4 白名单纪律（enterField→placeUnit），并补齐 D④ wavesExhausted/D⑤ advanceCursor 两签名，契约表完整覆盖 C9 三钩子；②F2.5 判胜公式澄清 wavesExhausted 定义权归 C9（处理态谓词非 cursor 簿记位置，D④ 求值先于 D⑤ 簿记）——防「按 cursor 位置求值」误读致末波胜利滞后一回合；均系澄清非行为变更，与 §2.5「耗尽判定归 C9 波次表」原文一致 |

@@ -1,10 +1,10 @@
 # C8 匈奴 AI 系统 · GDD
 
-> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #6
+> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #6
 > **产出**：design-strategist-2
 > **上游依据**：`design/game-concept-planA-turnbased.md` 定稿 v1.0（决策①「AI 弱则崩」风险/§6 四兵种克制表/§7 MVP 四兵种口径）｜ `design/systems-breakdown.md` v1.0（C8 一句话职责=意图脚本+目标评分、硬依赖 C2·C9、§6.2 督队裁定含用户扩展性附加约束）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.2（§2.2 B③ 计划生成窗口、C② 速度序、§3.3 plans_ready 事件）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（MoveOrder/MoveReport/MoveQuery/reachable、BLOCKED_TOP、C1-E15 冲车不进 C1）｜ `design/gdd/systems/C2-units.md` v1.1.1（§2.3 四兵种行为面、§2.4 双资源经济、§2.5 架梯 E1、§2.6 AuraStrategy 框架、§3.6 hasAura/UnitStatsQuery）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§6.1 firePreview/canFire、§2.1 设施作攻击目标）｜ `design/gdd/systems/C4-siege-phase.md` v1.0.1（§3.2 facility_volley 事件契约、§7.2 C8 消费面）｜ `design/gdd/systems/C5-combat-resolution.md` v1.1（§3.3 expectedMods/previewStrike、§10 OQ-4 走廊掩体口径）｜ `design/spikes/graybox-f1-report.md` v1.0（A* 0.037ms 均值、全相位<50ms 性能预算）
 > **范围红线**：本文只裁 C8——意图脚本消费与权重注入、目标价值评分框架（含确定性 tie-break）、四兵种行为契约（云梯/冲车/骑射手/督队）、计划生成窗口与确定性纪律、C10 AUTO 同轨消费接口、C11 士气 hook 预留。**不写**波次构成与入场时刻表（C9 职责，本文只消费其产物）、托管决策逻辑（C10 与 C8 同轨消费 F2 AUTO 槽，不另写一套）、单位属性/移动执行/伤害结算（C2/C1/C5）、士气系统实现（C11 Alpha）、任何数值定值（全落 F3 表）。
-> **对齐状态**：与 F1 v1.4.3 / F2 v1.0.2 / C1 v1.0.5 / C2 v1.1.1 / C3 v1.0.3 / C4 v1.0.1 / C5 v1.1 逐份对表零冲突（§7/§9）；两项前置走查结论入 §9——走查一（C5 OQ-4 走廊掩体口径）判定消费面自洽可销账；走查二（C4 §6.2 敌床弩装填节拍情报）裁定 MVP 不消费装填节拍做预测走位，C4 该契约行超范围、建议回派主理人收口；**C5 v1.2 联裁关闭 OQ-2（射程=`horseArcher.range`、吃高度修正、梯上单位入命中集），本文消费面零改动确认（2026-09-21 销账，§10 OQ-2）**。
+> **对齐状态**：与 F1 v1.4.3 / F2 v1.0.2 / C1 v1.0.5 / C2 v1.1.1 / C3 v1.0.3 / C4 v1.0.1 / C5 v1.1 逐份对表零冲突（§7/§9）；两项前置走查结论入 §9——走查一（C5 OQ-4 走廊掩体口径）判定消费面自洽可销账；走查二（C4 §6.2 敌床弩装填节拍情报）裁定 MVP 不消费装填节拍做预测走位，C4 该契约行超范围、建议回派主理人收口；**C5 v1.2 联裁关闭 OQ-2（射程=`horseArcher.range`、吃高度修正、梯上单位入命中集），本文消费面零改动确认（2026-09-21 销账，§10 OQ-2）**；**C9 v1.0 落盘回填：WaveManifest 消费确认——`unitIntents`/`enteringUnits` 两受控扩展字段不破坏主表四字段语义，单波在场时本文消费行为逐字节零变化（C9 联裁确认，§9.1-4）；C8.3 查表键精化核验并入该注记，消费侧零改动（2026-09-21）**；**C10 v1.0 交割回填：§9.1-5 UnitPlan 同轨消费挂账销账（C10 §9.2 消费确认，2026-09-21）**。
 
 ---
 
@@ -93,6 +93,8 @@ C8 **不定义**波次构成，只定义「如何消费」：
 | `spawnEdge` | 枚举 | 入场端（匈奴来向，F1 enemySpawns） |
 
 意图 → 权重映射（**F3 `intent-scripts.json`，数据驱动，禁硬编码**）：
+
+> **v1.0.2 注记（C9 v1.0 落盘消费确认，C9 联裁）**：C9 WaveManifest 在四字段主表外追加 `unitIntents`（全在场攻方单位→来源波意图映射，C9 入场瞬间固化）与 `enteringUnits`（本回合实际落位清单）两个受控扩展字段，**不破坏本表四字段语义**；意图随波不随回合（C9 §2.5 裁定）。本文消费侧零改动：查表键取 `unitIntents[u] ?? intentTag`——单波在场时两者恒等、本文行为逐字节零变化，多波并存时按逐单位意图评分（C9 §9.1-1 消费确认，2026-09-21）；`enteringUnits` 本文不消费（P1/P4/X5 语义）。
 
 | intentTag | 评分侧重（权重注入方向） | MVP 行为直觉 |
 |---|---|---|
@@ -242,7 +244,7 @@ interface ScoreBreakdown { candidate: TargetCandidate; targetVal: number; costVa
 
 - `C8.1 ｜ 目标价值：Value(u,c) = w_beacon·beaconVal(c) + w_garrison·garrisonVal(u,c) + w_facility·facilityVal(c) + w_path·pathVal(u,c) ｜ 各项基准 F3；beaconVal 最高、pathVal 为登城前置 ｜ 消费方：C8/P4`
 - `C8.2 ｜ 自身代价：Cost(u,c) = c_exposure·exposure(u,c) + c_detour·detour(u,c) + c_congestion·congestion(u,c) ｜ exposure 消费 C5.expectedMods 暴露分量、detour 消费 C1.reachable 代价、congestion 消费 F1.occupancyOf ｜ 消费方：C8`
-- `C8.3 ｜ 意图注入：IntentBias(u,c,t) = Σ_k δ_k(t)·Bias_k(u,c) ｜ δ_k 来自 intent-scripts.json[intentTag]（或 (level,wave) 覆盖）；主攻提 beaconVal/pathVal、佯攻提 dispersion、齐攻提 simultaneity ｜ 消费方：C8`
+- `C8.3 ｜ 意图注入：IntentBias(u,c,t) = Σ_k δ_k(t)·Bias_k(u,c) ｜ δ_k 来自 intent-scripts.json[unitIntent(u)]（或 (level,wave) 覆盖）；主攻提 beaconVal/pathVal、佯攻提 dispersion、齐攻提 simultaneity ｜ 表达式自 v1.0.2 由 intentTag 精化为 unitIntent(u) = unitIntents[u] ?? intentTag（C9 v1.0 受控扩展消费确认，单波在场逐字节零变化）｜ 消费方：C8`
 - `C8.4 ｜ 显式 tie-break：并列最高分候选取序 (Score↓, candidateCellId 字典序, unitId 字典序) ｜ 与 C1 §2.6-2 字典序纪律同源，确定性硬约束 ｜ 消费方：C8/X5`
 - `C8.5 ｜ 计划确定性：plan(turn) = f(snapshot(turn), waveManifest(turn), F3 表, F4 种子) 且 f 无内部随机 ⇒ 同输入逐字节同计划 ｜ F4 仅预留难度噪声钩子（MVP 不启用）｜ 消费方：F5/X5`
 - `C8.6 ｜ 性能预算：genCost = O(N·|U|)（N≤400 快照、|U|≤80 单位），单轮 generatePlans P95 < planBudgetMs（F3，初值 ⚠ 对齐 C1 全相位<50ms，建议 ≤10ms 量级）｜ 消费方：实现/性能验收`
@@ -386,8 +388,8 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 | 1 | C5 §10 OQ-4 | 骑射手走廊掩体口径（「格在谁脚下谁吃」是否自洽） | **走查一：确认销账**——见 §9.3 走查一结论 |
 | 2 | C4 §6.2 / §7.2 | 敌床弩装填节拍情报（`facility_volley`）消费面 | **走查二：裁定超范围，回派主理人**——见 §9.4 走查二结论 |
 | 3 | C2 §2.6 | 督队「守方 AI 优先点杀督队」反向口径 | **回派主理人**：该表述预设 Alpha 守方 AI/士气场景，与 MVP 匈奴仅 AI 矛盾；本文 §2.5 采用自洽解释，建议 C2 在 Alpha 落地时统一措辞（届时反向权重归 C11/C10 消费 `hasAura`，与本文 `MoraleHook` 衔接）（挂账确认 2026-09-21 主理人批准） |
-| 4 | C9（规划中） | `WaveManifest` 接口定义 | **半销账（本文主裁接口，C9 落地对齐）**：`intentTag`/`units`/`spawnEdge` 三字段本文 §2.2 先行定义；C9 落盘时按此签名对齐，非悬空 |
-| 5 | C10（规划中） | `UnitPlan` 同轨消费 | **销账（本文主裁结构）**：§3.1 `UnitPlan` 即 C10 AUTO 消费契约；对称无特权，C10 落盘时按此对齐 |
+| 4 | C9（规划中） | `WaveManifest` 接口定义 | **销账（C9 v1.0 落地，2026-09-21，C9 联裁批）**：C9 §3.3 按本文 §2.2 四字段签名逐字落地并追加 `unitIntents`/`enteringUnits` 两受控扩展字段（不破坏主表语义、单波在场本文行为逐字节零变化）；意图随波不随回合（C9 §2.5），本文查表键精化 `unitIntents[u] ?? intentTag`（§2.2 注记/C8.3）——逐字节零回归断言见 C9 §8.2-BE-6 |
+| 5 | C10（规划中） | `UnitPlan` 同轨消费 | **销账（C10 v1.0 消费确认，2026-09-21，C9 联裁批代落）**：同轨性落执行 API 与动作语义层——MOVE/CLIMB/ATTACK 经与 C10 完全相同的 C1 `MoveOrder`(mode='AUTO') + C5 `strike` API，RAISE_LADDER/RAM_ADVANCE 攻方兵种专属分支守方天然不含（结构对称自动成立）；C10 即时决策制（C10 §2.5）生成-执行间隙为零，**本文中间计划结构在 C10 侧无对称消费者为正确形态**，INV-C10-2 断言兜底无特权（详见 C10 §9.2） |
 | 6 | F1 §2.4.2 | 匈奴可达图 = ACTIVE∧BOTH 边过滤 | **销账（确认消费）**：C8 计划生成可达性评估严格在该边图上运行（§2.1/§7.1），DEFENDER_ONLY 边对匈奴不可见 |
 | 7 | C5-E5 | 冲车可被床弩走廊命中 | **销账（确认消费）**：冲车威胁评估含 C3 `firePreview` 射界（§2.4/§4.8），与 C5-E5「床弩目标集含冲车」一致 |
 
@@ -432,3 +434,4 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-005 序列 #6）：意图脚本消费接口（intentTag→IntentWeights 注入评分）/目标价值评分框架（帅帐·戍卒·设施·通路 + 暴露·绕路·拥挤代价 + 显式字典序 tie-break）/四兵种行为契约（云梯架梯动态连接器、冲车锚点推进经 C2 实体契约不进 C1、骑射 L0 骚扰消费走廊掩体、督队光环只读+高价值引导）/UnitPlan 同轨 C10 AUTO 消费结构/ScoringHook 扩展性框架（MoraleHook 占位禁硬编码）/确定性重放与性能预算对齐 C1<50ms；两项前置走查结论入 §9（走查一 C5 OQ-4 确认销账、走查二 C4 facility_volley 节拍裁定超范围回派主理人）；督队 C2 §2.6 反向口径张力回派项入 §9 |
 | v1.0.1-draft | 2026-09-21 | GW-P2-008 合流批，OQ-2 销账，主理人授权 -2 执行：§10 OQ-2 行照录 C5 v1.2 联裁结论关闭；§2.4 骑射手行括注「C5 OQ-2 待定」刷新为「已闭——键位已定值待灰盒」；header 对齐状态补 C5 v1.2 消费确认半句。零实质设计变更（消费面逐词对照确认） |
+| v1.0.2-draft | 2026-09-21 | **C9 联裁批（GW-P2-011a，主理人授权 C9 作者代落）**：①§9.1-4 WaveManifest 挂账销账——C9 v1.0 四字段签名逐字落地+两受控扩展字段（unitIntents/enteringUnits）消费确认；②§2.2 增扩展字段消费注记（意图随波不随回合；查表键 `unitIntents[u] ?? intentTag`，单波在场本文行为逐字节零变化）；③C8.3 表达式查表键同步精化（intentTag→unitIntent(u)，语义扩展非变更）；④§9.1-5 UnitPlan 同轨挂账销账（C10 v1.0 §9.2 消费确认：同轨性落执行 API 层，即时决策制下对称数据结构无消费者为正确形态）。零结构性改动，全部为消费确认与键名精化 |

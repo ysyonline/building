@@ -1,6 +1,6 @@
 # C2 单位系统 · GDD
 
-> **状态**：v1.1.2-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
+> **状态**：v1.1.3-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
 > **产出**：文策渊（design-strategist-2）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.4.2（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.4（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
 > **范围红线**：本文只裁 C2——兵种数据契约、属性容器、占用与生命状态、行动经济、MVP 督队光环的**可替换策略框架**。**不写**：移动执行（C1）、伤害/命中/克制的结算数值（C5）、匈奴决策（C8）、士气和连锁溃退（C11 Alpha）、设施（C3）。
@@ -205,7 +205,7 @@ interface Unit {
   placement: UnitPlacement;        // F1 §2.6：IN_CELL | ON_CONNECTOR | OFFBOARD
   cellId?: CellId;                 // placement=IN_CELL 时有效（ON_CONNECTOR 时=F1 逻辑位置=梯底格）
   auraStrategyId?: string;         // 仅有光环的单位非空（MVP 唯督队），表驱动，禁硬编码判断
-  controlMode: 'MANUAL' | 'AUTO';  // 行动槽路由数据（F2 消费）；默认：ATTACKER 恒 AUTO，DEFENDER 默认 MANUAL 可切
+  controlMode: 'MANUAL' | 'AUTO';  // 行动槽路由数据（F2 消费）；默认：ATTACKER 恒 AUTO；DEFENDER 默认 AUTO（决策②常规交火托管，C10 v1.0 §2.2 裁定），出生/部署/援军均 AUTO，玩家可随时切 MANUAL
   flags: UnitFlags;                // §3.3 行为旗标
 }
 ```
@@ -243,7 +243,7 @@ interface UnitTemplate {
 
 ### 3.4 C2 持有的写操作白名单
 
-`deploy(UNDEFINED→DEPLOYED)/ enterField(攻方入场)/ resetPhaseResources(MP/AP 回满)/ applyDamage(转发 C5 结果)/ eliminate(§2.7)/ setPlacement(经 F1)/ attachAura/ detachAura`。全部带校验+事件，纪律同 F1 §3.8（F5 存档的 C2 部分=单位列表全量序列化）。
+`deploy(UNDEFINED→DEPLOYED)/ enterField(攻方入场)/ resetPhaseResources(MP/AP 回满)/ applyDamage(转发 C5 结果)/ eliminate(§2.7)/ setPlacement(经 F1)/ attachAura/ detachAura/ setControlMode(模式写入唯一入口，§3.6，v1.1.3)`。全部带校验+事件，纪律同 F1 §3.8（F5 存档的 C2 部分=单位列表全量序列化）。
 
 ### 3.5 与 F1/C1/C5 的读写边界
 
@@ -264,6 +264,7 @@ interface UnitStatsQuery {
   actionDone(u: UnitId): boolean;            // 行动经济报告（F2 行动槽关闭判据：AP 耗尽 ∨ 显式放弃）
   controlMode(u: UnitId): 'MANUAL' | 'AUTO'; // F2 槽路由（C10.resolveSlot 消费）
   setActionDone(u: UnitId, done: boolean): void; // 放弃/行动结束回写（P3「结束行动」→C2，F2 槽关闭）
+  setControlMode(u: UnitId, mode: 'MANUAL' | 'AUTO'): void; // 模式写入唯一入口（v1.1.3 X-C10-1）：P3→C10Command 消费，带校验；成功写入后发 controlMode_changed{unitId, mode} 事件（P4 挂件即时刷新）
   layerAccess(u: UnitId): readonly Height[];
   footprint(u: UnitId): 'NONE';
   canBoardLadder(u: UnitId): boolean;
@@ -277,6 +278,7 @@ interface UnitStatsQuery {
 // 注：speed/actionDone/controlMode/setActionDone 四方法即 F2 §6.2 契约表「⚠ 待 C2 GDD 定签名」与
 // F2 OQ-1 的关闭交付——接口语义 F2 已锁，此处为签名定稿。
 // isAlive/aliveDefendersIn/unitAt 三方法为 C3 交叉互审对表交付（C3 §3.4 读写边界表挂账项），v1.1.0。
+// setControlMode 为 C10 增补批交付（GW-P2-011b，主理人授权代落，C10 §9.6 X-C10-1），v1.1.3。
 ```
 
 ---
@@ -352,6 +354,7 @@ interface UnitStatsQuery {
 |---|---|---|---|
 | 单位属性接口 | C2→C1 | §3.6 UnitStatsQuery（MP/AP/layerAccess/footprint/canBoardLadder/applyMpDelta）——**关闭 C1 §6.2「⚠ 待 C2 定签名」行** | ✅ |
 | 速度序/槽路由数据 | C2→F2 | `speed(u)` / `actionDone(u)` / `controlMode(u)` / `setActionDone`（§3.6）——**关闭 F2 §6.2「⚠ 待 C2 定签名」行与 F2 OQ-1** | ✅ v1.0.1 |
+| 模式写入 | C2→C10/P3/P4 | `setControlMode(u, mode)` 写入面＋`controlMode_changed{unitId, mode}` 事件（C10 §9.6 X-C10-1 落地） | ✅ v1.1.3 |
 | 伤害转发 | C5→C2 | applyDamage(u, dmg, source?)，C2 负责死亡连锁 | ✅ |
 | 行动经济 | C2→C5/C4/C10 | AP 检查＋C2.4 锁足规则；攻击后禁移动 | ✅（数值 C5 表） |
 | 光环数据 | C2→C8/C10/C5 | hasAura() + AuraEffect.modifiers 合成结果（C2.7） | ✅ MVP=PRESENCE 通道 |
@@ -390,7 +393,7 @@ interface UnitStatsQuery {
 | C5 攻防结算 | hp/AP/isStructureTarget/immunity 旗标、光环 modifiers | 序列 #5 |
 | C8 匈奴 AI | 全部单位快照（snapshot）、hasAura（督队目标权重）、架梯候选约束（§2.5） | 序列 #6 |
 | C9 波次编排 | templateId 构兵、死亡事件计数、入场 enterField | 序列 #8 |
-| C10 托管微操 | 行动菜单合法性、锁足规则、光环权重 | 序列 #8 |
+| C10 托管微操 | 行动菜单合法性、锁足规则、光环权重；controlMode 字段＋setControlMode 写入面＋controlMode_changed 事件 | 已落盘 v1.0，v1.1.3 消费确认（§7.3） |
 | C11 士气（Alpha） | AuraStrategy 替换点＋MORALE 通道 | Alpha |
 | C6 经济 | 死亡缴获/督队赏格事件 | 序列 #7 |
 | P3/P4 | §6.1 全部 UI 语义 | — |
@@ -400,6 +403,7 @@ interface UnitStatsQuery {
 
 - C1（design-strategist，v1.0.1）：其 §6.2 契约表「MP/许可/footprint ⚠ 待 C2 定接口签名」由本文 §3.6 关闭；其 OQ-1（冲车 footprint）由本文裁定 C 关闭（结论：C1 无需扩展，footprint 恒 NONE）；其 OQ-2（MP 基准/移动-行动经济）由本文 §2.4 关闭。**C1 文件本体不动**（结论对 C1 无结构性影响），记录于本文变更日志。
 - F2（design-strategist，v1.0 已落盘）：相位时点——**OQ-1 关闭**：C2 §2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），语义与原假设一致，零冲突。
+- C10（design-strategist-c10，v1.0 已落盘）：其 §9.6 两项增补申请（X-C10-1 setControlMode 写入面 / X-C10-2 controlMode 默认值注释）经主理人裁定**全部批准**，本文件 v1.1.3 由 C10 作者按申请文案**主理人授权代落**：§3.1 注释修订为「DEFENDER 默认 AUTO」（决策②常规交火托管）、§3.4 写白名单增 setControlMode、§3.6 UnitStatsQuery 增 setControlMode＋controlMode_changed 事件面。C2 结构零改动（字段宿主原位、零新枚举零新迁移），C10 OQ-6 就此关闭。
 
 ---
 
@@ -477,3 +481,4 @@ interface UnitStatsQuery {
 | v1.1.0-draft | 2026-09-21 | C3 交叉互审对表（本人审 C3 的同步回填）：①§2.4 修正「滚木投放读戍卒 AP」笔误→设施操作与单位 AP 经济完全解耦（与 C3 §2.5 自由指令口径一致）；②新增 §2.4.1 攻击与目标——覆盖「攻击设施」分支（C3-E5 对表，target=FacilityId 资格判定在 C2、伤害入口 C5），并成文互认「光环只作用单位、设施不受光环」（互审重点②）；③新增 §2.4.2+§3.6 增补 isAlive/aliveDefendersIn/unitAt 三原语（C3 §3.4 挂账的存活查询签名，crewAlive 语义组装权留 C3）；④反向发现并已修复 F1 INV1 容量计入矛盾（F1 v1.3.2，设施不计入单位容量预算） |
 | v1.1.1-draft | 2026-09-21 | 003 门内自改（设计侧走查移交，主理人批准）：①D-2 header 上游依据版本升引 F1 v1.3→v1.4.2、C1 v1.0.1→v1.0.4（引用内容零冲突，纯版本号对齐）；②D-3 §7.3「F2（v1.0 已落盘）」顶格孤行窜表修复——原行无表头可挂致 markdown 断表，转同构列表项（与 C1 行格式一致） |
 | v1.1.2-draft | 2026-09-21 | **GW-P2-008 互审合流批（主理人授权，design-strategist-2 执行）**：X-1 采纳——§2.1 表下增「组合态注记」一行（`DEPLOYED∧OFFBOARD`=已购未上场，C7 撤回预备队零费再部署，不入行动序/C8 计划域；以 C6 charge 是否发生划「已购/未购」界；「复用 WITHDRAWN」经主理人终裁否决）；UNDEFINED 行加防混半句；§6.2「层位部署校验」行补 C7 v1.0 五闸履行注记。C2 结构零改动（纯注记行，无新枚举无新迁移） |
+| v1.1.3-draft | 2026-09-21 | **C10 增补批（主理人授权代落，design-strategist-c10 执行）**：C10 §9.6 两项申请落盘——X-C10-1：§3.4 写白名单增 `setControlMode`（模式写入唯一入口）；§3.6 UnitStatsQuery 增 `setControlMode(u, mode)`＋`controlMode_changed{unitId, mode}` 事件面（P4 挂件刷新）；§6.2 契约表增「模式写入」行（C2→C10/P3/P4）。X-C10-2：§3.1 controlMode 字段注释修订为「DEFENDER 默认 AUTO（决策②常规交火托管，C10 v1.0 §2.2 裁定）」。§7.2 C10 消费行更新为已落盘＋v1.1.3 消费确认；§7.3 增 C10 协调记录（C10 OQ-6 关闭）。结构零改动（写入面为既有字段宿主的方法化，无新枚举无新迁移） |
