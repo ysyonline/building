@@ -1,6 +1,6 @@
 # F1 立体地形与网格系统 · GDD
 
-> **状态**：v1.4.0-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #1
+> **状态**：v1.4.1-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #1
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/game-concept-planA-turnbased.md`（决策①直接立体战棋）｜ `design/systems-breakdown.md` §5（分层 2D 网格 MVS）＋ §5.4（残余风险表）
 > **范围红线**：本文只裁 F1——格子模型/占位容量/连接器图论/关卡数据结构/对外接口契约。**不写** C1 寻路算法选型（序列 #2）、不写任何渲染实现（P1）、不写器械结算（C5/C4）。
@@ -48,7 +48,7 @@ F1 定义多层立体棋盘的**纯数据模型与结构契约**：坐标系、�
 | C | 格子类型 | 7 类：WALL（结构体）/ PARAPET / RAMPART_WALK / GATE（门洞）/ SLOPE / GROUND / BEACON_FLOOR；无「洞/坑」类，垂直地形差只允许出现在连接器与墙结构处 |
 | D | **占位容量（R1 结论）** | 按格类型分容量：垛口 1 单位、马道 2、地面 4、门洞 1、烽燧顶 1、坡道 1、墙结构 0；垛口=1×1 独占位；**堆叠上限 4**；设施全部独占；容量数值全部 F3 表宿主可调 |
 | E | 连接器 | **9 字段**统一数据结构（id/from/to/connKind/orient/accessPolicy/occupancy/status/lifetime）；SLOPE+LADDER 共用；坡道/门洞 BOTH 双方共用、烽燧内部梯 DEFENDER_ONLY 守方专属；LADDER 承载与顶端占用分离（§4.4） |
-| F | 存取模型 | 只读查询接口供下游；写操作收敛为 6 个显式 mutation（§3.8），全部带合法性校验、发事件、可序列化——这是存档（F5）与模拟器（X5）的地基 |
+| F | 存取模型 | 只读查询接口供下游；写操作收敛为 8 个显式 mutation（§3.8，v1.4.1 增补 board/unboard 攀爬登记对），全部带合法性校验、发事件、可序列化——这是存档（F5）与模拟器（X5）的地基 |
 | G | 查询预算 | 状态/邻接/高度差/容量查询 O(1)；全图快照 O(N)（N≈200-400，spike 回证成本可忽略）供 AI 评估；**MVP 邻接查询时现算**（无预计算/脏标记，spike 回证 §11.1-1） |
 | H | 关卡校验 | 17 条加载期校验规则（§8.4，V11 语义=攻方在 ACTIVE∧BOTH 边图的可达范围）+ 三关最小结构判据（§10.4）；攻方不可达=硬错误拒绝加载 |
 
@@ -262,7 +262,7 @@ interface Adjacency {
 |---|---|---|
 | `occupantIds` / `facilityId` | C7（部署/建造）、C1（移动落格）、C2（增删单位） | 全部 |
 | `connector.status` / `lifetime.currentHp` | C2/C8（架设）、C5（耐久伤害） | C1/C8/P1 |
-| `connector.occupancy` | C1（进入/离开/坠梯） | C5（梯上单位受击）、P1（攀爬表现） |
+| `connector.occupancy` | C1（经 boardConnector/unboardConnector 进入/离开；梯毁 E2 由 destroyConnector 原子清；击杀链由 removeUnit 同事务覆盖） | C5（梯上单位受击）、P1（攀爬表现） |
 | `passable` / `Adjacency` | 仅 F1 内部（构造/变更） | C1 寻路、C8 AI、C5 射线 |
 
 ### 3.7 对外只读查询接口（TerrainQuery，供 §6.2 契约）
@@ -283,9 +283,16 @@ interface TerrainQuery {
 
 预算：单点查询 O(1)；`snapshot()` O(N)，N ≤ 400（spike 回证：A* 全路径搜索均值 0.037ms，快照成本可忽略，频次约束保持「每阵营每回合 ≤ 2 次」，无需收紧）。
 
-### 3.8 F1 的写操作白名单（全部带校验 + 事件 + 可序列化）
+### 3.8 F1 的写操作白名单（全部带校验 + 事件 + 可序列化，v1.4.1 起共 8 个）
 
-`placeUnit / removeUnit / moveUnit(原子跨格) / registerFacility / addConnector(架梯) / destroyConnector(梯毁)`。
+`placeUnit / removeUnit / moveUnit(原子跨格) / registerFacility / addConnector(架梯) / destroyConnector(梯毁) / boardConnector(攀梯登记) / unboardConnector(离梯注销)`。
+
+**攀爬登记双 mutation（v1.4.1 增补，GW-P2-003 技术条目 #1，主理人裁定；工程复核：程基岩）**：
+- `boardConnector(c, unit)`：`canBoard(c)` 校验（F1.10）+ `occupancy` 登记为**单事务**——INV2 的正式执行入口。此前攀爬登记（IN_CELL→ON_CONNECTOR）不在写白名单内，INV2/INV6 无执行入口（规格级缺口，实现侧走查发现）。单位逻辑位置保持 `c.from`（INV2 后半句）。
+- `unboardConnector(c, unit)`：双触发源——**主动弃梯**（C1-E4，C1 调用）与**梯毁 E2**（经 destroyConnector 链）。注销 occupancy、恢复格占用语义；具体落位由调用链裁定。
+- **E2 毁梯链事务序（附注，工程实现约束）**：`destroyConnector` 原子清 `occupancy`（INV6）→ 单位落位（from 格 / 同层邻接顺延 / OFFBOARD 兜底）；**落位失败不回滚 destroy**——「梯毁单位必有着落」是单向保证，断边不可逆。
+- **removeUnit 覆盖 ON_CONNECTOR 态（v1.4.1 收敛裁定）**：`removeUnit` 移除单位时，若该单位登记于任一 `connector.occupancy`，**同事务清除**——击杀链（C1-E2）无需显式 unboard 前置。裁定理由：occupancy 完整性是 F1 结构承诺（INV2/INV3），不可寄托于调用方记得先 unboard；`unboardConnector` 保留给主动弃梯路径。三链路归一：主动弃=unboard / 击杀=removeUnit（覆盖 ON_CONNECTOR）/ 梯毁=destroyConnector。
+
 跨格移动为原子操作：先目标格校验（passable+容量）再双端登记，失败则整条拒绝、原格不动；不存在半更新状态。所有 mutation 发事件（供 P1 渲染订阅/P4 告警/X5 录制），事件流可重放=存档一致性地基（配合 F4 确定性随机）。
 
 ---
@@ -334,7 +341,7 @@ interface TerrainQuery {
 ### 4.6 不变量（全部可单测，验收判据直接引用）
 
 - INV1：格容量恒不超——`∀cell: |occupantIds| ≤ cap(cell)`（**两套账**：设施占位 `facilityId` 不计入单位容量预算，设施约束=「一格恒至多一设施」由 registerFacility 独立校验，见 §3.6；v1.3.2 修正：旧式 `|occupantIds| + (facility?1:0) ≤ cap(cell)` 与 §2.5.3「设施不消耗单位槽」矛盾，会把合法的「马道 1 床弩+2 戍卒」误判超容）。
-- INV2：连接器 occupancy ≤ 1；`ON_CONNECTOR` 单位逻辑位置 = `c.from`。
+- INV2：连接器 occupancy ≤ 1；`ON_CONNECTOR` 单位逻辑位置 = `c.from`（v1.4.1 执行入口注记：boardConnector/unboardConnector/destroyConnector/removeUnit 四 mutation 即其封闭执行点，§3.8；逻辑位置等式系结构承诺，非实现指令——实现侧按「occupancy 与 from 格占用并存登记」理解即可，F1 不约束内部存储形态）。
 - INV3：容器内被引用的每个 CellId/UnitId/ConnectorId 均存在且唯一。
 - INV4：跨格移动原子性——不存在「离开 A 未进 B」中间态。
 - INV5：无「洞」——垂直层差只经 Connector；任意格存在到烽燧格的路径（连通性）。
@@ -595,6 +602,10 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 - spike §5-6「同格多连接器的占用/容量细则」→ 移交 **C1**（spike 演示允许 L2 与墙顶格共存，MVP 够用；细则=同一落点格上多条 ACTIVE 连接器的排队/容量交互）→ 已发 C1 作者回填，关闭时点 GW-P2-003 前一见 §11.2 OQ-7；
 - spike §5-2 预留位「单向性连接器」→ **Alpha 扩展注记**（MVP 全部连接器双向，accessPolicy 管阵营不管方向；单向梯若 Alpha 引入，扩 `oneWay` 字段位，不动 9 字段既有语义）。
 **OQ-1 软证据**：spike 邻居扩展代码对 GATE-as-Connector 零特判（与普通静态边同路径），弱支持本文「特殊静态 Connector」方案，终裁归 C1。
+**工程复核小项落账（v1.4.1，程基岩 C1 v1.0.2 实现侧走查，changelog 注「工程复核采纳」）**：
+1. **确定性 tie-break（措辞弱化）**：本文对等长路径 tie-break 不再重申具体配方——**配方唯一定义处 = C1 §2.6-2（路径格序列字典序）**，F1 地形侧无可裁决内容（邻接查询为集合语义、无次序承诺）；spike 内部「节点键展开序」属 spike 实现私有约定，不升格为跨文档规格。
+2. **GATE-as-Connector（OQ-1 显式销账）**：C1 已暗含 Connector 案（§2.2 连接器过滤消费契约即按此写）+ spike 零特判软证据——本项正式关闭，终裁=「特殊静态 Connector」（E11 方案），归口注记 C1；实现侧请按「GATE 走与其他静态边完全同路径」落地，不新增分支。
+3. **性能措辞校准**：§3.7/TL;DR-G 中「0.037ms」等数字为 spike 单机实测演示值（Node 20 / 87 节点），非规格承诺——规格承诺仅保留两条：查询接口 O(1) / snapshot O(N≤400)；F3 调参或规模变化后实测数字可偏离，不构成违反。
 **v1.4.0 补账说明**：本表 1/2/4 关闭与规格级修正（CellId 含 h）为 design-strategist 于 v1.3.3 完成；design-strategist-2（本文署名者）复核全表通过，并补入上注三项移交追踪（多连接器共用落点 → OQ-7 归 C1；单向性预留位注记；格类型映射注记）——spike 报告 §5 全部条目至此零遗漏落账。
 **边成本注意（转 C1）**：spike 演示值 ramp1.4/ladder1.8 ≠ §4.5 climb=2，以 F3/C1 为准；**A* 启发函数层差权重必须 ≤ F3 定稿后的最小跨层边成本**（否则可采纳性破坏、路径非最优——F3 定 climb=2 则启发权重 2.0），此约束已由 spike 实测验证（其 1.4 即当时最便宜跨层边）。
 
@@ -602,9 +613,9 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
-| OQ-1 | GATE 建模为「特殊静态 Connector」（本文 E11 裁定）vs 「特殊格类型+隐式边」 | C1/C3 | C1 GDD 动笔前确认 |
+| ~~OQ-1~~ | ~~GATE 建模为「特殊静态 Connector」vs「特殊格类型+隐式边」~~ **已关闭（v1.4.1 销账）**：终裁=特殊静态 Connector（E11 方案）；依据=C1 §2.2 暗含采纳+spike 零特判软证据（§11.1）；实现注记见 §11.1 工程复核小项 | ~~C1/C3~~ 已归档 | — |
 | OQ-2 | `ladderHp` 数值与「礌石砸梯」结算入口 | C2/C3/C5 | C5 GDD |
-| OQ-3 | 冲车是否占地面格 | C2 | C2 GDD |
+| ~~OQ-3~~ | ~~冲车是否占地面格~~ **已关闭（v1.4.1 销账）**：C2 v1.1.0 已裁定冲车=不占格结构攻击实体（footprint NONE、锚点占 1 槽），E12 口径随之收敛，C1-E15 按「不占格」分支闭合 | ~~C2~~ 已归档 | — |
 | OQ-4 | 墙体结构连续段查询粒度（修理/命中用） | C3/C5 | C5 GDD（R2 同场对齐） |
 | OQ-5 | 堆叠可视化交互（P3） | 林绘澄/P3 | 视觉对齐备忘回传时 |
 | OQ-7 | 同格多连接器（共用落点格）的占用/容量细则——spike §5-6 移交项（v1.4.0 补账） | C1 | C1 GDD 补记或 GW-P2-003 |
@@ -623,3 +634,4 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | v1.3.2-draft | 2026-09-21 | C3 交叉互审修复（C2 审 C3 时发现反向 bug）：INV1 移除 `(facility?1:0)` 容量计入——旧式与 §2.5.3「设施不消耗单位槽」自相矛盾，会拒绝合法的「马道 1 床弩+2 戍卒」场景；设施约束收敛为「一格恒至多一设施」（registerFacility 独立校验，C3-E12 同口径） |
 | v1.3.3-draft | 2026-09-21 | **spike 对齐闭环**：①规格级修正 CellId→`${x}_${z}_${h}`（§3.1/F1.1/F1.1a/TL;DR-A/§9.2 同步，修复同列多格碰撞，spike 坑 1 同构教训）；②运行存储定稿层主序 `layers[h][x][z]`、邻接查询现算（§3 前言/TL;DR-G）；③getCellAt 三参化（§3.7）；④适配器归属渲染层（F1.2）；⑤snapshot 频次约束保持（回证）；⑥§11.1 改结论表（1/2/4 关闭，3 保持 open 随 F4）；新增字段映射确认/启发权重约束（转 C1）/OQ-1 软证据 |
 | v1.4.0-draft | 2026-09-21 | spike 对齐复核与补账（design-strategist-2）：v1.3.3 全表复核通过；§11.1 增补三项移交追踪——格类型映射注记（spike 5 类⊂F1 7 类）、单向性连接器 Alpha 预留位注记、**同格多连接器共用落点细则→OQ-7 归 C1**（spike §5-6 移交项此前双方均未落账）；spike §5 全条目零遗漏落账 |
+| v1.4.1-draft | 2026-09-21 | **工程复核采纳批次（GW-P2-003 前最后修订，主理人授权直接落盘）**：①§3.8 写白名单 6→8——增补 `boardConnector`/`unboardConnector` 攀爬登记双 mutation（技术条目#1，INV2/INV6 执行入口缺口；含 E2 毁梯链事务序附注：destroy 原子清 occupancy→落位 from/顺延/OFFBOARD 兜底，落位失败不回滚 destroy）；②removeUnit 显式覆盖 ON_CONNECTOR 态（击杀链同事务清 occupancy，三链路归一：主动弃=unboard/击杀=removeUnit/梯毁=destroyConnector）；③INV2 补执行入口注记；④OQ-1 GATE 建模显式销账（终裁=特殊静态 Connector，归口 C1）；⑤OQ-3 冲车占格销账（随 C2 v1.1.0 footprint NONE 裁定，E12 口径随之收敛）；⑥tie-break 配方唯一定义处归 C1 §2.6-2、F1 侧措辞弱化（spike 展开序不升格为跨文档规格）；⑦性能数字改标「spike 演示值」，规格承诺仅保留 O(1)/O(N≤400) 两条。同步：TL;DR-F 8 mutation、§3.6 occupancy 读写行、§11.1 工程复核小项落账节 |
