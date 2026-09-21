@@ -1,10 +1,10 @@
 # X2 战役半永久建设继承系统（含附录 A：F5 存档 / 附录 B：X1 战役流程）· GDD
 
-> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-012 ｜ GDD 撰写序列 #9（X2+F5+X1 合并批，systems-breakdown 序 #9）；v1.0.1=互审勘误批（c9 主审 PASS + -2-2 次审）
+> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-012 ｜ GDD 撰写序列 #9（X2+F5+X1 合并批，systems-breakdown 序 #9）；v1.0.1=互审勘误批（c9 主审 PASS + -2-2 次审）；v1.0.2=X3 合流勘误批（A2/A3 回执，主理人代落）
 > **产出**：本文 X2 本体（§1-§11）＋附录 A（F5 存档，自带 A.1-A.8 八节结构）＋附录 B（X1 战役流程，同构）——三系统同批合并成文，职责边界见 §1.1，拆分与否裁定见 §1.1.3
 > **上游依据**：`design/gdd/systems/F2-phase-scheduler.md` v1.0.4（§1.4-F 存档点 S0/S1、§2.5 D④ 胜负判定唯一点、§3.1 TurnState、§3.2 DPhaseLedger.turnEndSnapshots、§5-E9 战役账本休眠条件、§6.2 存档点 F2→F5/终局移交 F2→X1、BE-2 确定性重放）｜ `design/gdd/systems/C6-economy.md` v1.0.2（§2.4 garrisonCasualties 归 BattleEndReport、重募费用键归 X2 裁、§3.1 TreasuryState、§3.3 BattleEndReport v1、OQ-2 treasuryCarryRule）｜ `design/gdd/systems/C2-units.md` v1.1.3（§2.1 X-1 组合态注记 DEPLOYED∧OFFBOARD、§3.1 controlMode、E12 全量序列化、INV-C2-2/3）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§3.1 Facility 实体、§3.3 设施指令面）｜ `design/gdd/systems/C7-build-deploy.md` v1.0.1（§7.2 X2 继承间接注记、六指令模型、W-1 修墙接口需求）｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0.2（§9.1-4 WaveManifest 消费确认，零 X2 依赖）｜ `design/gdd/systems/C9-wave-orchestration.md` v1.0（§2.6 三关骨架、§3.2 WaveRuntimeState）｜ `design/gdd/systems/C10-delegation-control.md` v1.0.1（E5 controlMode 随档恢复、缺字段默认 AUTO+告警）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（§3.3 TerrainRuntime、§7.2 下游表注 X2 继承：静态 LevelMap 逐关不变动态层跨关重建、V1/V4 单烽燧、§10 三关三变量）｜ `design/systems-breakdown.md`（X2/X1/F5 职责行、链 B 硬依赖序、E9 战役层胜负条件裁定、F3/F4 定位）｜ `design/game-concept-planA-turnbased.md` 定稿 v1.0（决策③「战役+半永久建设继承」、MVP 6 周 3 关、胜负=帅帐破/3 烽燧失守）
 > **范围红线**：MVP 只裁 3 关线性战役（教学→标准→高潮）＋MVP 最小可行继承方案（**设施/墙体/粮饷不跨关携带，幸存戍卒名单携带**）；Alpha 扩展一律只列接口占位（设施携带/ treasuryCarryRule C 案/多烽燧战役判定/手动多槽存档/败关撤退继承）；F5 只收口 MVP 单槽自动存档；本文零数值硬编码，全部挂 F3 表（F3 GDD 未落盘，键位先行声明，见 §7.3）
-> **对齐状态**：消费 F2 v1.0.4 / C6 v1.0.2 / C2 v1.1.3 / C3 v1.0.3 / C7 v1.0.1 / C8 v1.0.2 / C9 v1.0 / C10 v1.0.1 / F1 v1.4.3 契约逐条走查通过（§9.1-§9.8）；对 C6 OQ-2 的裁定与 C6 建议方向相左（§1.4-D，B 案而非 C 案）——已列申请位请主理人复核；待 C6/C7/C2 回执项见 §9.9-§9.11
+> **对齐状态**：消费 F2 v1.0.4 / C6 v1.0.3 / C2 v1.1.3 / C3 v1.0.3 / C7 v1.0.2 / C8 v1.0.2 / C9 v1.0 / C10 v1.0.1 / F1 v1.4.3 契约逐条走查通过（§9.1-§9.8）；下游 X3 v1.0 已签收本文交割物（§9.14，挂点步骤②后＋快照 `x3?` 区段回执）；开放申请位与待回执项均已闭账（§9.9-§9.14）
 
 ---
 
@@ -313,7 +313,7 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 
 | # | 接收方 | 交割物 | 时点 |
 |---|---|---|---|
-| 3 | X3（序列 #10） | LEVEL_INIT(L1) 挂点位置（附录 B.2.2 步骤①后）；F5 存档生命周期摘要；「教学关不可跳过 S0 存档」约束 | 本文落盘即交割 |
+| 3 | X3（序列 #10） | LEVEL_INIT(L1) 挂点位置（附录 B.2.2 步骤②后，rosterPool 投放完成——v1.0.2 精化，对齐本文 B-BE-3/B.4-4 既有措辞与 X3 v1.0 §2.2 裁定）；F5 存档生命周期摘要；「教学关不可跳过 S0 存档」约束 | 本文落盘即交割；X3 已签收（v1.0 合流） |
 | 4 | P1-P5 | §6 四项数据面；OFFBOARD 残队「预备队生还」标注语义 | 本文 §6 |
 | 5 | 程基岩（经主理人） | X2 结算纯函数签名（§3.1）；SaveDocument 分部拼装序（附录 A.3）；「Carry 三字段恒 null 勿做非空分支」实现提示 | 本文 §9 |
 | 6 | 美术/叙事侧（经主理人） | 结算画面幸存者叙事行；「无人生还/预备队生还」文案占位；幸存者角标 | 本文 §6/OQ-2 |
@@ -341,7 +341,7 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 | 9.11 | C7 | ✅ **已回执（C7 v1.0.2，-2-2 落账，主理人核验）**：§7.2 继承间接注记刷新——「设施不携带（每关重建）；幸存戍卒经 rosterPool 承接（X2 v1.0 §2.1，附录 B 流转）」，销本挂账 |
 | 9.12 | F3（落盘时） | 收编 §3.2 四键；`initialTreasury` 三卡值进首轮平衡评审 |
 | 9.13 | F4（落盘时） | 附录 A.5 checksum 签名（结算流水字节序＋哈希算法）对齐；补「F5 为 checksum 消费方」依赖行 |
-| 9.14 | X3（序列 #10） | §9.2-3 交割物签收 |
+| 9.14 | X3（序列 #10） | ✅ **已签收（X3 v1.0 合流，GW-P2-014）**：挂点措辞经 v1.0.2 精化为步骤②后（A2）；快照增补 `x3?: TutorialState` 已落 A.3（A3）；F5 存档生命周期摘要与「不可跳过 S0 存档」约束已入 X3 §9.2 |
 
 ---
 
@@ -364,6 +364,7 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-012，序列 #9 合并批）：X2 本体八节＋附录 A（F5）＋附录 B（X1）；核心裁定九项（§1.4 A-I）；BattleEndReport v1.1 追加式回填；DEPLOYED∧OFFBOARD 残队记账落账（硬性挂账 1）；休眠条件显式标注（硬性挂账 2）；F5 消费 C2-E12/C10-E5/S0-S1/确定性纪律（硬性挂账 3）；C6 OQ-2 裁 B 案列申请位；C7 建设继承显式裁定设施/墙体不携带（硬性挂账 5） |
 | v1.0.1-draft | 2026-09-21 | **互审勘误批**（c9 主审 PASS + -2-2 次审，主理人合流）：**M-1 相位术语勘误**——建设阶段是 F2 A 相位非 B 相位（F2 v1.0.4 §2.2 权威语义；c9 提示：原文照实现会与 C9 B① 敌军入场时序打架，行为级防错非修饰），六处全改（§1.2-3/§2.1-A 理由三/§2.1-C2/§6 粮饷行/A.2.1 裁定 H 段三处/F5-E4），存档语义本身 c9 已独立验证零一致性风险；L 级三条（L1=B.2.1 波次 4/6/8 加注 ⚠ 随 C9 OQ-1 灰盒标定；L2=A.2.1 封存行措辞精化「仅三关全 WIN 封存」；L3=§2.4 时序图快照加引用符 preLevelSnapshot/B.2.2-③）；裁定回填两项（§9.9-1 C6 OQ-2 终裁维持 B 案已闭、C6 v1.0.3 c9 落账销账；§10 OQ-3 存档槽位 MVP 单槽成立已裁）；待回执状态同步（§9.10 C6 三件已回执 C6 v1.0.3、§9.11 C7 注记刷新在途 -2-2 代落 C7 v1.0.2） |
 | v1.0.1-draft 补 | 2026-09-21 | **勘误批收尾（主理人合流代落）**：次审 L4-L6 三条补齐——L4=§2.1-C2「战斗阶段可照常部署」改「后续回合 A 相位（建设阶段）可照常部署（部署恒 phase='A'）」（消除与 C7 S1 窗口闸的括注矛盾，M-1 同族收口）；L5=附录 A.3 `c7?: CommandLog` 改 `c7?: OrderLogEntry[]`（C7 §3.4 原名，加文档别名注）；L6=附录 A.8 A.4-2 行补 controlMode 归属声明半句（C2 §3.1 实体字段随全量携带）；§9.11 置已回执（C7 v1.0.2 已核验）。至此互审双 PASS 全部意见闭环，X2 无开放修订项 |
+| v1.0.2-draft | 2026-09-21 | **X3 合流勘误批（主理人代落，GW-P2-014 申请位回执）**：①A2 采纳——§9.2-3 交割表挂点措辞「步骤①后」精化为「步骤②后（rosterPool 投放完成）」并置 X3 已签收；对齐本文 B-BE-3/B.4-4 既有措辞（步骤①系交割表单处笔误，非行为语义变更）与 X3 v1.0 §2.2 裁定。②A3 采纳——附录 A.3 SaveDocument 增 `x3?: TutorialState` 可选区段（缺字段走 INV-F5-4 默认 COMPLETED＋告警，对齐 C10-E5 先例；L2/L3 关 S0 恒 undefined）。③§9.14 X3 交割物签收置已闭。A1 驳回备案：X3 §9.11-A1 所称 C9 §2.6 键名冲突经主理人三重 grep 核验不存在（C9 全文无 initialTreasury 引用），零勘误 |
 
 ---
 ---
@@ -416,6 +417,7 @@ interface SaveDocument {
   c2: Unit[];                         // C2 v1.1.3 E12 全量（含 controlMode / placement / auraStrategyId）
   c3: Facility[];                     // C3 v1.0.3 §3.1（含 currentHp / locked* / state）
   c7?: OrderLogEntry[];               // C7 v1.0.1 指令流水（文档别名注：C7 §3.4 原名 OrderLogEntry；可选诊断位；不参与语义恢复，语义已固化于各分部）
+  x3?: TutorialState;                 // X3 v1.0 §3.3 教学运行态（X3 v1.0 §9.11-A3 增补；MVP 仅 L1 装载教学，L2/L3 关 S0 存档时恒 undefined；缺字段走 INV-F5-4 默认 COMPLETED＋告警，禁静默降级）
 }
 ```
 
