@@ -1,10 +1,10 @@
 # C5 攻防结算系统 · GDD
 
-> **状态**：v1.1.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
+> **状态**：v1.2-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
 > **产出**：文策渊（design-strategist）
-> **上游依据**：`design/gdd/systems/C2-units.md` v1.1.1（MP×AP 双资源/mpZeroOnAttack 锁足/squadHP 池/存活原语 isAlive·aliveDefendersIn·unitAt）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.2（俯射弹道走廊提案 §2.2/毁梯链 C3.6/canDrop 曼哈顿+轴向度量 C3.5）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（高度层 h∈{0,1,2}/heightDiff/连接器 occupancy/E2 坠落位移链/destroyConnector）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（BLOCKED_TOP 留梯排队/攀爬原子时序/EXPOSED 暴露态）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.1（E10 伤害仅 C 相位/beacon 断言/D④ 检查点）｜ `design/spikes/graybox-f1-report.md` §6（R2 性能回证：网格步进 0.28μs/发 vs 真射线 115μs/发）｜ 概念稿 §5 战斗公式草案＋克制三原则
+> **上游依据**：`design/gdd/systems/C2-units.md` v1.1.1（MP×AP 双资源/mpZeroOnAttack 锁足/squadHP 池/存活原语 isAlive·aliveDefendersIn·unitAt）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.2（俯射弹道走廊提案 §2.2/毁梯链 C3.6/canDrop 曼哈顿+轴向度量 C3.5）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（高度层 h∈{0,1,2}/heightDiff/连接器 occupancy/E2 坠落位移链/destroyConnector）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（BLOCKED_TOP 留梯排队/攀爬原子时序/EXPOSED 暴露态）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.1（E10 伤害仅 C 相位/beacon 断言/D④ 检查点）｜ `design/spikes/graybox-f1-report.md` §6（R2 性能回证：网格步进 0.28μs/发 vs 真射线 115μs/发）｜ 概念稿 §5 战斗公式草案＋克制三原则 ｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0（骑射手行为契约＝L0 机动骚扰/规避床弩射界/消费走廊掩体口径，v1.2 联裁其射击模型）
 > **范围红线**：本文只裁 C5——命中/伤害结算流程、克制系数与高度修正的消费语义、床弩穿透弹道的目标集语义（R2 终裁）、礌石毁梯结算序、坠落/砸落/坠落暴露三类伤害入口、梯上受击面、结算原子性与确定性。**不写**攻击资格判定（C2 §2.4.1）、目标选择策略（C3 targetPriority/C8 AI）、行动经济（C2）、位移执行（F1/C1）、相位时序（F2）、托管决策（C10）、数值平衡定值（F3 表宿主）。
-> **对齐状态**：R2 玩法语义获 spike §6 性能回证（性能非约束），本文 §2.2 正式终裁；与 C2 v1.1.1/C3 v1.0.2/F1 v1.4.3/F2 v1.0.1 逐条对表零冲突（§9 逐项列）；程基岩技术交割 6 条全部消费（§9 契约表）；C8 v1.0 走查一确认 OQ-4「格在谁脚下谁吃」口径在其逐格 expectedMods 评分消费面自洽（§9 三态清单转派销账）。
+> **对齐状态**：R2 玩法语义获 spike §6 性能回证（性能非约束），本文 §2.2 正式终裁；与 C2 v1.1.1/C3 v1.0.2/F1 v1.4.3/F2 v1.0.1 逐条对表零冲突（§9 逐项列）；程基岩技术交割 6 条全部消费（§9 契约表）；C8 v1.0 走查一确认 OQ-4「格在谁脚下谁吃」口径在其逐格 expectedMods 评分消费面自洽（§9 三态清单转派销账）。**v1.2：OQ-2 骑射手远程射击模型经主理人授权联裁关闭（主裁=文策渊，C8 消费面确认归 -2-2）**——仰射走廊/高度修正不从简/梯上单位同权三裁定见 §2.2，零结构改动。
 
 ---
 
@@ -86,6 +86,16 @@ C5 是全部「打得动打不动、打掉多少血」的**结算引擎**：接�
 - **WALL 不阻挡**：墙顶武器俯射，墙体结构格不截断走廊（V6 校验保证走廊界外无格）；
 - **否决备选模型**：「同层直线仅 h=1 目标」不满足克制表（打不到地面骑射手）——C3 §2.2-B 已判非推荐，本文随终裁正式关闭；「跨层真射线」性能可行但语义漂移（穿层命中与格容量语义脱钩、可读性差、确定性 tie-break 复杂化），**列为不做**（§10 OQ 状态：关闭）。
 - **数值预算背书**（程基岩交割①）：10 床弩齐射 × range 12 格 × 全格占满最坏情况 ≈ 3μs 网格步进总开销，性能永非瓶颈。
+
+#### 2.2.1 骑射手远程射击模型（OQ-2 联裁终裁，v1.2）
+
+**结论：骑射手远程攻击复用俯射弹道走廊模型（§2.2 全部语义），带仰射符号换向＋三参数差异化**——同一套结算引擎、零新弹道类型：
+
+- **① 射程键语义（C5.10）**：`horseArcher.range` 与 `bedCrossbow.range` **同构**——自骑射手格沿 `facing` 的同层（h=0 地面）轴向直线延伸 range 格的格序列（C3.1 原语复用）。与床弩的差异只有三点：**发射高度恒 h=0**（床弩 h=1 墙顶线）、**目标集=走廊内全部敌阵营占位（同 §2.2 目标集语义，穿透逐目标独立过骰）**、**射程值独立**（F3 两键分开调，`horseArcher.range` ⚠ 初值建议 < 床弩，灰盒定）。「穿透一列」的骚扰面正是「骑射克无盾戍卒、怕掩体」（概念稿克制表）的机制载体。
+- **② 高度修正：吃，方向按 §2.4 既有符号约定，不从简**——`heightDiff(target, attacker)` 直接适用：骑射（h=0）打墙顶目标（h=1/2）时 heightDiff 为正（目标高位）→ 骑射吃低打高惩罚、目标吃高位增益，**无需新增任何系数键**。「仰攻惩罚」与「地面机动补偿」的二选一是伪命题：机动性补偿已由骑射的 MP 5＋射程＋「掩体够不着的输出位」承担（C8 §2.4 行为契约），结算层再叠反向补偿=双补偿失真；MVP 不引入「groundArcherCompensation」类新键——**修正四源合成（C5.3）结构零改动**，Alpha 若要补偿走 ScoringHook/难度档另议（概念稿克制三原则②「克制是效率差而非免疫」的正向兑现：仰攻确有代价，但垛口掩体 coverMod 才是主反制）。
+- **③ 梯上单位：同权入命中集**——ON_CONNECTOR 取逻辑位置=梯底格（§2.2 既有消费语义），梯底格在骑射走廊内即被命中判定，吃 `exposedMod ladder`（与床弩打梯上单位完全同权）。裁定理由：梯上单位是「攀爬即险途」（C1 §2.4 等待者暴露）的受击面，不因攻击者来自地面而豁免——否则「爬到一半最安全」的悖论出现，直接违背 P2 暴露语义的自洽性；且梯底格在 h=0，与骑射同层，命中判定无跨层追溯问题（C8 §9.3 走查一「格在谁脚下谁吃」口径自然延伸）。**对云梯步兵集群的压制＝骑射手「消耗高度优势」定位（C2 §2.3）的结算面**。
+- **不做项**：曲射抛物线/跨层弯折弹道（与 §2.2 真射线否决同源，网格语义纪律）；对墙顶目标的「锁定直击」特例（走廊语义统一，无第二目标集物化路径）。
+- **消费面**：C8 §2.4 骑射手行为契约（射程内点杀墙顶戍卒、规避床弩射界）按本节语义零改动成立；`expectedMods` 对骑射手目标的评估自动含 heightDiff 惩罚项（暴露评分消费面自洽）。数值（`horseArcher.range`/命中基准是否对骑射独立设键）留灰盒，语义本文关闭。
 
 ### 2.3 结算顺序（多目标/多来源的固定序，确定性要求）
 
@@ -196,6 +206,7 @@ interface StrikeReport {
 | `fallDamage` | 坠落伤害基准（E2 自由落体分量） | weapons.json | 待灰盒 |
 | `dropDamage` | 砸落伤害基准（礌石动能分量） | weapons.json | 待灰盒 |
 | `crossbow.damage` | 床弩单发伤害 | weapons.json | 待灰盒 |
+| `horseArcher.range` | 骑射走廊射程（格）——C5.10（OQ-2 联裁键位） | weapons.json | 待灰盒（初值建议 < `bedCrossbow.range`） |
 | `meleeMod vs facility` | 近战对设施伤害系数 | weapons.json | 待灰盒 |
 | `squadHpPowerCurve` | 残队战力折扣曲线（C2 OQ-3 承接） | combat.json | 线性 hp 比例 |
 
@@ -241,6 +252,7 @@ interface ResolutionQuery {
 - `C5.7 ｜ 走廊目标结算序：ord(u) = 轴向距离(origin→pos(u)) 升序，等距按 unitId 字典序 ｜ 确定性硬约束 ｜ 消费方：C5/X5`
 - `C5.8 ｜ 种子游标推进：每次 rand(F4) 调用游标 +1，调用序=§2.3 结算发生序 ｜ 重放校验：seedCursorBefore/After 夹逼 ｜ 消费方：X5/F5`
 - `C5.9 ｜ 对设施伤害：dmgFacility = meleeMod vs facility × base(MELEE) ｜ 走 C5→C3 currentHp 落账，摧毁判定归 C3.7 ｜ 消费方：C3（C3-E5 场景）`
+- `C5.10 ｜ 骑射走廊：T_ha = {u | pos(u) ∈ Line(pos(ha), facing(ha), horseArcher.range) ∧ faction(u)=攻} ｜ Line=C3.1 原语（发射高度恒 h=0，同层地面轴向）；ON_CONNECTOR 取 pos=c.from 同权入集；修正合成 C5.3 原样适用（heightDiff 恒 ≤0：骑射打高位目标吃低打高惩罚）｜ range 宿主 F3（与 bedCrossbow.range 独立两键）｜ 消费方：C5/C8/P1`
 
 ### 4.1 不变量（可单测）
 
@@ -378,6 +390,7 @@ interface ResolutionQuery {
 ### 8.4 数值初值汇总（全部 F3 宿主 ⚠ 工作假设，见 §3.2 表；灰盒轮统一校准）
 
 - 命中 0.75 ／ 高度 ±0.10/层 ／ 垛口掩体 −0.15 ／ 梯上暴露 +0.25 ／ 其余伤害基准待灰盒定。
+- 骑射手（C5.10，OQ-2 联裁）：`horseArcher.range` 待灰盒（建议 < 床弩 range）；命中/伤害是否对骑射独立设键待灰盒——高度修正按既有 ±0.10/层自动适用（仰攻惩罚），零新修正键。
 - **平衡联动注记**：`moveCost climb`（F3/C1 域）↔ `exposedMod ladder`（本文域）共担「爬城一拍」风险收益曲线，调任一需联动复核另一（§2.4）；`dropRadius`（C3）↔ `dropDamage`（本文）共担礌石强度。
 
 ---
@@ -416,7 +429,7 @@ interface ResolutionQuery {
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
 | OQ-1 | `ladderHp`/`fallDamage`/`dropDamage`/`crossbow.damage` 等伤害基准数值定值（入口语义已全部闭合，纯数值） | C2/C3/平衡轮 | 灰盒可玩性轮（§8.4 统一校准） |
-| OQ-2 | 骑射手远程射击模型（射程键/是否吃高度修正/是否可打梯上单位） | C5/C8 | 本 GDD 未裁（概念稿「远程骚扰」未细化）——随 C8 GDD（序列 #6）或本文 v1.1 增补 |
+| OQ-2 | ~~骑射手远程射击模型（射程键/是否吃高度修正/是否可打梯上单位）~~ | ~~C5/C8~~ | **已关闭（C5 v1.2，GW-P2-008 联裁，主裁=文策渊）**：①射程=`horseArcher.range`，与床弩走廊同构（仰射=h=0 发射的轴向格序列，C5.10）；②吃高度修正，按 §2.4 既有符号约定（低打高惩罚），零新键、合成结构零改动；③梯上单位同权入命中集（逻辑位置=梯底格，吃 exposedMod ladder）。数值（range/独立命中基准）留灰盒（§8.4），语义三问全部关闭；C8 消费面确认归 -2-2 |
 | OQ-3 | ~~`facility_volley` 事件名与齐射锚点时点~~ **已关闭（C4 v1.0 终裁，C5 v1.1 销账）**：锚点=`combat_phase_started` 处理期内、C① 重置与序快照前的同步结算段；C3 OQ-3「攻方行动段前」字面满足，备选「速度序先动」否决（跨系统耦合不值）；C4.4 与 C5.7 结算序同源零冲突，不触发结构回填 | ~~C4~~ 已归档 | — |
 | OQ-4 | `horseArcher` 与走廊目标的命中优先交互（骑射能否被垛口掩体减免——掩体只对墙顶线内目标成立？） | C5/平衡轮 | ✅ 已销账（2026-09-21，C8 §9.3 消费面核验）：「格在谁脚下谁吃」在 C8 逐格 expectedMods 评分消费面自洽，无跨层追溯歧义 |
 
@@ -429,3 +442,4 @@ interface ResolutionQuery {
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-005 序列 #5b）：结算总流程单事务化；**R2 穿透弹道终裁=俯射走廊**（网格语义定版，真射线列不做，spike §6 性能回证）；**礌石五步固定序（先位移后伤害）**；修正合成四源+heightDiff 符号锚定；梯上受击面五场景收口（F1 OQ-2 销账）；死亡连锁深度 1；承接转派 9 项三态清单（5 销/2 半销/2 转派确认）；技术交割 6 条消费对账；X 对拍确定性纪律（种子游标夹逼） |
 | v1.1-draft | 2026-09-21 | **C4 落盘联动回填（与 C4 §9.3 案一致）**：①§6.2 齐射锚点行 ⚠→✅（锚点终裁引 C4 v1.0：combat_phase_started 处理期内、C① 前的同步结算段；C4.4/C5.7 结算序同源零冲突；CROSSBOW_VOLLEY/facility_volley 命名辨析收录）；②§10 OQ-3 销账（C3 OQ-3 随 C4 关闭）；上游契约面零冲突，无结构改动 |
 | v1.1.1-draft | 2026-09-21 | **C8 走查一销账（design-strategist-2 代执行，主理人授权）**：§10 OQ-4 行补销账注记——「格在谁脚下谁吃」口径经 C8 §9.3 逐格 expectedMods 评分消费面核验自洽、无跨层追溯歧义；对齐状态行加 C8 v1.0 消费确认；OQ-4 转派销账闭环 |
+| v1.2-draft | 2026-09-21 | **OQ-2 骑射手远程射击模型联裁关闭（GW-P2-008，主裁=文策渊，主理人授权）**：新增 §2.2.1——①射程键 `horseArcher.range` 与床弩走廊同构（仰射=h=0 发射的同层轴向格序列，复用 C3.1 原语，无新弹道类型）；②吃高度修正且不从简——按 §2.4 既有符号约定（heightDiff 恒 ≤0=低打高惩罚），「地面机动补偿」否决（机动性已由 MP/射程/掩体够不着承担，双补偿失真），修正合成 C5.3 结构零改动；③梯上单位同权入命中集（逻辑位置=梯底格+exposedMod ladder，防「爬到一半最安全」悖论）；新增公式 C5.10；§3.2 补 horseArcher.range 键行；§8.4 补骑射初值汇总；§10 OQ-2 销账（数值留灰盒，语义三问全闭）；header 上游依据增 C8 v1.0；C8 消费面确认归 -2-2 |

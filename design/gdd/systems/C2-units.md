@@ -1,6 +1,6 @@
 # C2 单位系统 · GDD
 
-> **状态**：v1.1.1-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
+> **状态**：v1.1.2-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
 > **产出**：文策渊（design-strategist-2）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.4.2（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.4（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
 > **范围红线**：本文只裁 C2——兵种数据契约、属性容器、占用与生命状态、行动经济、MVP 督队光环的**可替换策略框架**。**不写**：移动执行（C1）、伤害/命中/克制的结算数值（C5）、匈奴决策（C8）、士气和连锁溃退（C11 Alpha）、设施（C3）。
@@ -65,13 +65,14 @@ UNDEFINED → DEPLOYED → ENGAGED → (ELIMINATED | WITHDRAWN)
 
 | 状态 | 含义 | 占位 | 进入/离开 |
 |---|---|---|---|
-| `UNDEFINED` | 未部署（守方预备队/攻方波次队列） | 无（OFFBOARD，F1 §2.6） | C7 部署→DEPLOYED；C9 入场→DEPLOYED |
+| `UNDEFINED` | 未部署（守方预备队/攻方波次队列） | 无（OFFBOARD，F1 §2.6）（与 DEPLOYED∧OFFBOARD 组合态区分：后者=已购，见表下注） | C7 部署→DEPLOYED；C9 入场→DEPLOYED |
 | `DEPLOYED` | 在场上待命 | IN_CELL（占格槽） | 每攻防相位开始全量重置 MP/AP |
 | `ENGAGED` | 本轮已行动（攻击/攀爬/移动后标记） | 同上 | 行动结束→回 DEPLOYED（同轮不再手动行动） |
 | `ELIMINATED` | 死亡 | 清空（经 F1 removeUnit） | 终态；攻方出图，守方入 X2 抚恤记账 |
 | `WITHDRAWN` | 攻方主动撤退（Alpha 才开放，MVP 预留枚举） | 清空 | 不进 MVP 校验 |
 
 - 状态机由 C2 持有，**占位迁移全部经 F1 写白名单**（placeUnit/moveUnit/removeUnit），C2 不直改 occupantIds——INV1/INV3 的纪律同 F1 §3.8。
+- **组合态注记（X-1，GW-P2-008 互审合流批采纳）**：`DEPLOYED ∧ placement=OFFBOARD`（F1 §2.6）=**已购未上场**（C7 撤回预备队——A 相位可零费再部署；不入行动序/C8 计划域，本来就不在场上，零行为面新增）；与 `UNDEFINED`（=未购买，A 相位部署须先经 C6 charge）以「是否已支付」划界——「已购 vs 未购」的分界=C6 charge 是否发生，非新增状态枚举。「复用 WITHDRAWN」方案经主理人终裁否决（WITHDRAWN=攻方离场终态域，与「可逆占位回撤」类别不同）。X2 记账语义无损：OFFBOARD 残队=幸存者，不进 garrisonCasualties。
 - 每轮 MP/AP 重置时点：**F2 事件 `combat_phase_started`（B→C 相位迁移时发出，F2 §3.3 事件表）驱动 `resetPhaseResources()`**——C① MP 重置（F2 §2.4 时序）即此事件；AP 同点重置（F2 行动槽模型对 1 AP 兼容，F2.2）。v1.0.1 已按 F2 v1.0 落盘版对齐事件名，OQ-1（F2 相位时点）关闭。
 
 ### 2.2 守方：戍卒小队
@@ -356,7 +357,7 @@ interface UnitStatsQuery {
 | 光环数据 | C2→C8/C10/C5 | hasAura() + AuraEffect.modifiers 合成结果（C2.7） | ✅ MVP=PRESENCE 通道 |
 | 士气预留 | C2→C11(Alpha) | AuraStrategy 整体替换＋channel: MORALE 透传＋units.json 加列位 | ✅ 结构就绪，MVP 无消费者 |
 | 死亡事件 | C2→C6/C9/P1/P4 | eliminate 事件 {unitId, killer?, cause} | ✅ |
-| 层位部署校验 | C7→C2 | deploy(zone, templateId) 合法性（layerAccess∩zone.h 非空＋容量） | ✅ |
+| 层位部署校验 | C7→C2 | deploy(zone, templateId) 合法性（layerAccess∩zone.h 非空＋容量） | ✅ C7 v1.0 §2.9-D1~D4 五闸清单履行；组合态（DEPLOYED∧OFFBOARD）再部署同走五闸 |
 | MP/AP 基准值 | F3→C2 | units.json（本文 §2.2/§2.3 工作假设为初值） | ✅ 键定，值 F3 宿主 |
 | 存活/在场原语 | C2→C3/C5 | `isAlive / aliveDefendersIn / unitAt`（§2.4.2）——**关闭 C3 §3.4 挂账签名** | ✅ v1.1.0 |
 | 攻击资格（含设施目标） | C2→C5/C3 | §2.4.1：近战可及 `meleeReach`、immuneToMeleeInteract 单位域过滤、设施目标资格判定 | ✅ v1.1.0 |
@@ -475,3 +476,4 @@ interface UnitStatsQuery {
 | v1.0.1-draft | 2026-09-21 | F2 对齐回填（主理人验收后）：§2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），OQ-1 关闭；§3.6 UnitStatsQuery 增补 speed/actionDone/controlMode/setActionDone 四方法，关闭 F2 §6.2「⚠ 待 C2 定签名」与 F2 OQ-1；Unit 实体增补 controlMode 字段（F2 槽路由消费面） |
 | v1.1.0-draft | 2026-09-21 | C3 交叉互审对表（本人审 C3 的同步回填）：①§2.4 修正「滚木投放读戍卒 AP」笔误→设施操作与单位 AP 经济完全解耦（与 C3 §2.5 自由指令口径一致）；②新增 §2.4.1 攻击与目标——覆盖「攻击设施」分支（C3-E5 对表，target=FacilityId 资格判定在 C2、伤害入口 C5），并成文互认「光环只作用单位、设施不受光环」（互审重点②）；③新增 §2.4.2+§3.6 增补 isAlive/aliveDefendersIn/unitAt 三原语（C3 §3.4 挂账的存活查询签名，crewAlive 语义组装权留 C3）；④反向发现并已修复 F1 INV1 容量计入矛盾（F1 v1.3.2，设施不计入单位容量预算） |
 | v1.1.1-draft | 2026-09-21 | 003 门内自改（设计侧走查移交，主理人批准）：①D-2 header 上游依据版本升引 F1 v1.3→v1.4.2、C1 v1.0.1→v1.0.4（引用内容零冲突，纯版本号对齐）；②D-3 §7.3「F2（v1.0 已落盘）」顶格孤行窜表修复——原行无表头可挂致 markdown 断表，转同构列表项（与 C1 行格式一致） |
+| v1.1.2-draft | 2026-09-21 | **GW-P2-008 互审合流批（主理人授权，design-strategist-2 执行）**：X-1 采纳——§2.1 表下增「组合态注记」一行（`DEPLOYED∧OFFBOARD`=已购未上场，C7 撤回预备队零费再部署，不入行动序/C8 计划域；以 C6 charge 是否发生划「已购/未购」界；「复用 WITHDRAWN」经主理人终裁否决）；UNDEFINED 行加防混半句；§6.2「层位部署校验」行补 C7 v1.0 五闸履行注记。C2 结构零改动（纯注记行，无新枚举无新迁移） |

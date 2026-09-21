@@ -1,10 +1,10 @@
 # C8 匈奴 AI 系统 · GDD
 
-> **状态**：v1.0-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #6
+> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #6
 > **产出**：design-strategist-2
 > **上游依据**：`design/game-concept-planA-turnbased.md` 定稿 v1.0（决策①「AI 弱则崩」风险/§6 四兵种克制表/§7 MVP 四兵种口径）｜ `design/systems-breakdown.md` v1.0（C8 一句话职责=意图脚本+目标评分、硬依赖 C2·C9、§6.2 督队裁定含用户扩展性附加约束）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.2（§2.2 B③ 计划生成窗口、C② 速度序、§3.3 plans_ready 事件）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（MoveOrder/MoveReport/MoveQuery/reachable、BLOCKED_TOP、C1-E15 冲车不进 C1）｜ `design/gdd/systems/C2-units.md` v1.1.1（§2.3 四兵种行为面、§2.4 双资源经济、§2.5 架梯 E1、§2.6 AuraStrategy 框架、§3.6 hasAura/UnitStatsQuery）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§6.1 firePreview/canFire、§2.1 设施作攻击目标）｜ `design/gdd/systems/C4-siege-phase.md` v1.0.1（§3.2 facility_volley 事件契约、§7.2 C8 消费面）｜ `design/gdd/systems/C5-combat-resolution.md` v1.1（§3.3 expectedMods/previewStrike、§10 OQ-4 走廊掩体口径）｜ `design/spikes/graybox-f1-report.md` v1.0（A* 0.037ms 均值、全相位<50ms 性能预算）
 > **范围红线**：本文只裁 C8——意图脚本消费与权重注入、目标价值评分框架（含确定性 tie-break）、四兵种行为契约（云梯/冲车/骑射手/督队）、计划生成窗口与确定性纪律、C10 AUTO 同轨消费接口、C11 士气 hook 预留。**不写**波次构成与入场时刻表（C9 职责，本文只消费其产物）、托管决策逻辑（C10 与 C8 同轨消费 F2 AUTO 槽，不另写一套）、单位属性/移动执行/伤害结算（C2/C1/C5）、士气系统实现（C11 Alpha）、任何数值定值（全落 F3 表）。
-> **对齐状态**：与 F1 v1.4.3 / F2 v1.0.2 / C1 v1.0.5 / C2 v1.1.1 / C3 v1.0.3 / C4 v1.0.1 / C5 v1.1 逐份对表零冲突（§7/§9）；两项前置走查结论入 §9——走查一（C5 OQ-4 走廊掩体口径）判定消费面自洽可销账；走查二（C4 §6.2 敌床弩装填节拍情报）裁定 MVP 不消费装填节拍做预测走位，C4 该契约行超范围、建议回派主理人收口。
+> **对齐状态**：与 F1 v1.4.3 / F2 v1.0.2 / C1 v1.0.5 / C2 v1.1.1 / C3 v1.0.3 / C4 v1.0.1 / C5 v1.1 逐份对表零冲突（§7/§9）；两项前置走查结论入 §9——走查一（C5 OQ-4 走廊掩体口径）判定消费面自洽可销账；走查二（C4 §6.2 敌床弩装填节拍情报）裁定 MVP 不消费装填节拍做预测走位，C4 该契约行超范围、建议回派主理人收口；**C5 v1.2 联裁关闭 OQ-2（射程=`horseArcher.range`、吃高度修正、梯上单位入命中集），本文消费面零改动确认（2026-09-21 销账，§10 OQ-2）**。
 
 ---
 
@@ -140,7 +140,7 @@ Score(u, c) = Σ_target  w_target · Value_target(u, c)        // 正项：目�
 |---|---|---|
 | **云梯步兵** `ladder_infantry` | ①若目标墙段无可用梯且本单位未架过梯 → 选点架梯（E1）；②次回合/已有梯 → 攀爬至顶 → 墙顶近战攻击设施/戍卒 | 架梯需 AP≥1 ∧ MP≥climb(2)（C2 §2.5）；每波每单位至多 1 架；架设回合不可再攀爬（自然互斥）；选点偏好 FRONTAL>AXIAL、优先守军火力薄弱垛口（F1 §2.4.3 / C2 §2.5）；攀爬经 C1 `canClimb`→`applyMoveOrder` |
 | **冲车** `ram_chariot` | 锚点推进至 GATE/墙前 → 撞击（AP）破结构；不进 C1 寻路 | **经 C2 实体契约的锚点推进**（C2 裁定 C / C1-E15：冲车 footprint=NONE、完全不进 C1、锚点格占 1 槽、移动语义归 C2）；`immuneToMeleeInteract=true` 使其不可被近战但仍可被床弩走廊命中（C5-E5）；C8 发 `RamAdvancePlan`（锚点目标格）而非 `MoveOrder` |
-| **骑射手** `horse_archer` | L0 机动至墙下射程内 → 远程点杀墙顶戍卒/暴露单位；规避床弩射界 | `layerAccess=[0]` 永不上墙（C1 §2.3）；射程键 `horseArcher.range`（F3，C5 OQ-2 待定，本文消费 `previewStrike`/`expectedMods`）；**走廊掩体口径消费见走查一**：骑射自身在地面无 PARAPET 掩体，其射击对墙顶目标按目标格掩体结算 |
+| **骑射手** `horse_archer` | L0 机动至墙下射程内 → 远程点杀墙顶戍卒/暴露单位；规避床弩射界 | `layerAccess=[0]` 永不上墙（C1 §2.3）；射程键 `horseArcher.range`（F3，C5 OQ-2 已闭——键位已定值待灰盒，本文消费 `previewStrike`/`expectedMods`）；**走廊掩体口径消费见走查一**：骑射自身在地面无 PARAPET 掩体，其射击对墙顶目标按目标格掩体结算 |
 | **督队** `warlord_escort` | 随队推进（落后攻击锋线、保持光环覆盖）、不主动进攻；引导附近匈奴单位评分偏向高价值目标 | `attackCapable=false`（C2 §2.3，MVP 不输出）；只读消费 `hasAura(u)` + C2.7 modifiers（威胁/行动优先级）；「高价值目标引导」MVP 解释见 §2.5 |
 
 #### 2.5 督队「高价值单体目标引导」MVP 解释（含上游张力声明）
@@ -419,7 +419,7 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
 | OQ-1 | `intent-scripts.json` / `ai-scripts.json` 全部权重初值（§8.4 表） | C8/平衡轮 | 灰盒可玩性轮统一标定 |
-| OQ-2 | 骑射手远程射击模型（射程键 `horseArcher.range`、是否吃高度修正、可否打梯上单位）——C5 OQ-2 同题 | C5/C8 | C5 GDD 落定后联裁 |
+| OQ-2 | ~~骑射手远程射击模型（射程键 `horseArcher.range`、是否吃高度修正、可否打梯上单位）——C5 OQ-2 同题~~ | ~~C5/C8~~ | **已关闭（C5 v1.2 联裁，GW-P2-008，主裁=文策渊；C8 消费面确认 2026-09-21）**：射程=`horseArcher.range`，与床弩走廊同构（仰射=h=0 发射的同层轴向格序列，C5 §2.2.1/C5.10）；吃高度修正——heightDiff 恒 ≤0 低打高惩罚按 C5.3 既有合成自动适用，零新键；梯上单位同权入命中集（逻辑位置=梯底格＋exposedMod ladder）。本文 §2.4 骑射手行为契约零改动成立（键名/previewStrike/expectedMods 消费面/走查一掩体口径全部相容），§2.4 行括注「C5 OQ-2 待定」随本销账刷新为「键位已定，值待灰盒」；range 数值留灰盒（C5 §8.4/OQ-1 承接） |
 | OQ-3 | 齐攻意图的「同步登城」协同项如何量化（多梯同回合攀爬加成公式） | C8/平衡轮 | 灰盒轮（PL-1 联测） |
 | OQ-4 | 督队 `leadWeight` 与光环半径 r 的平衡联动（C2.7 r 与 C8 引导强度） | C2/C8 | 灰盒轮 |
 | OQ-5 | 难度档扩展：Alpha 是否启用 F4 难度噪声钩子 / 「趁装填冲梯」作为高难档行为 | C8/C11 | Alpha 启动评审 |
@@ -431,3 +431,4 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-005 序列 #6）：意图脚本消费接口（intentTag→IntentWeights 注入评分）/目标价值评分框架（帅帐·戍卒·设施·通路 + 暴露·绕路·拥挤代价 + 显式字典序 tie-break）/四兵种行为契约（云梯架梯动态连接器、冲车锚点推进经 C2 实体契约不进 C1、骑射 L0 骚扰消费走廊掩体、督队光环只读+高价值引导）/UnitPlan 同轨 C10 AUTO 消费结构/ScoringHook 扩展性框架（MoraleHook 占位禁硬编码）/确定性重放与性能预算对齐 C1<50ms；两项前置走查结论入 §9（走查一 C5 OQ-4 确认销账、走查二 C4 facility_volley 节拍裁定超范围回派主理人）；督队 C2 §2.6 反向口径张力回派项入 §9 |
+| v1.0.1-draft | 2026-09-21 | GW-P2-008 合流批，OQ-2 销账，主理人授权 -2 执行：§10 OQ-2 行照录 C5 v1.2 联裁结论关闭；§2.4 骑射手行括注「C5 OQ-2 待定」刷新为「已闭——键位已定值待灰盒」；header 对齐状态补 C5 v1.2 消费确认半句。零实质设计变更（消费面逐词对照确认） |
