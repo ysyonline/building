@@ -289,7 +289,7 @@ interface TerrainQuery {
 
 **攀爬登记双 mutation（v1.4.1 增补，GW-P2-003 技术条目 #1，主理人裁定；工程复核：程基岩）**：
 - `boardConnector(c, unit)`：`canBoard(c)` 校验（F1.10）+ `occupancy` 登记为**单事务**——INV2 的正式执行入口。此前攀爬登记（IN_CELL→ON_CONNECTOR）不在写白名单内，INV2/INV6 无执行入口（规格级缺口，实现侧走查发现）。单位逻辑位置保持 `c.from`（INV2 后半句）。
-- `unboardConnector(c, unit)`：双触发源——**主动弃梯**（C1-E4，C1 调用）与**梯毁 E2**（经 destroyConnector 链）。注销 occupancy、恢复格占用语义；具体落位由调用链裁定。
+- `unboardConnector(c, unit)`：双触发源——**主动弃梯**（C1-E4，C1 调用；**GW-P2-003 终裁 A 案：from 格有空槽方可，满则拒绝弃梯、单位留梯保持暴露**——本 mutation 校验含 from 格 canPlace，INV1 无豁免）与**梯毁 E2**（经 destroyConnector 链）。注销 occupancy、恢复格占用语义；具体落位由调用链裁定。
 - **E2 毁梯链事务序（附注，工程实现约束）**：`destroyConnector` 原子清 `occupancy`（INV6）→ 单位落位（from 格 / 同层邻接顺延 / OFFBOARD 兜底）；**落位失败不回滚 destroy**——「梯毁单位必有着落」是单向保证，断边不可逆。
 - **removeUnit 覆盖 ON_CONNECTOR 态（v1.4.1 收敛裁定）**：`removeUnit` 移除单位时，若该单位登记于任一 `connector.occupancy`，**同事务清除**——击杀链（C1-E2）无需显式 unboard 前置。裁定理由：occupancy 完整性是 F1 结构承诺（INV2/INV3），不可寄托于调用方记得先 unboard；`unboardConnector` 保留给主动弃梯路径。三链路归一：主动弃=unboard / 击杀=removeUnit（覆盖 ON_CONNECTOR）/ 梯毁=destroyConnector。
 
@@ -619,6 +619,7 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | OQ-4 | 墙体结构连续段查询粒度（修理/命中用） | C3/C5 | C5 GDD（R2 同场对齐） |
 | OQ-5 | 堆叠可视化交互（P3） | 林绘澄/P3 | 视觉对齐备忘回传时 |
 | OQ-7 | 同格多连接器（共用落点格）的占用/容量细则——spike §5-6 移交项（v1.4.0 补账） | C1 | C1 GDD 补记或 GW-P2-003 |
+| OQ-8 | ~~「部署物 deployables」措辞统一~~（GW-P2-003 已出方案，落 §12 关联文件） | 全体 GDD/概念稿 | 方案随 003 评审报告出，主理人批准后执行 |
 
 ---
 
@@ -635,3 +636,4 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | v1.3.3-draft | 2026-09-21 | **spike 对齐闭环**：①规格级修正 CellId→`${x}_${z}_${h}`（§3.1/F1.1/F1.1a/TL;DR-A/§9.2 同步，修复同列多格碰撞，spike 坑 1 同构教训）；②运行存储定稿层主序 `layers[h][x][z]`、邻接查询现算（§3 前言/TL;DR-G）；③getCellAt 三参化（§3.7）；④适配器归属渲染层（F1.2）；⑤snapshot 频次约束保持（回证）；⑥§11.1 改结论表（1/2/4 关闭，3 保持 open 随 F4）；新增字段映射确认/启发权重约束（转 C1）/OQ-1 软证据 |
 | v1.4.0-draft | 2026-09-21 | spike 对齐复核与补账（design-strategist-2）：v1.3.3 全表复核通过；§11.1 增补三项移交追踪——格类型映射注记（spike 5 类⊂F1 7 类）、单向性连接器 Alpha 预留位注记、**同格多连接器共用落点细则→OQ-7 归 C1**（spike §5-6 移交项此前双方均未落账）；spike §5 全条目零遗漏落账 |
 | v1.4.1-draft | 2026-09-21 | **工程复核采纳批次（GW-P2-003 前最后修订，主理人授权直接落盘）**：①§3.8 写白名单 6→8——增补 `boardConnector`/`unboardConnector` 攀爬登记双 mutation（技术条目#1，INV2/INV6 执行入口缺口；含 E2 毁梯链事务序附注：destroy 原子清 occupancy→落位 from/顺延/OFFBOARD 兜底，落位失败不回滚 destroy）；②removeUnit 显式覆盖 ON_CONNECTOR 态（击杀链同事务清 occupancy，三链路归一：主动弃=unboard/击杀=removeUnit/梯毁=destroyConnector）；③INV2 补执行入口注记；④OQ-1 GATE 建模显式销账（终裁=特殊静态 Connector，归口 C1）；⑤OQ-3 冲车占格销账（随 C2 v1.1.0 footprint NONE 裁定，E12 口径随之收敛）；⑥tie-break 配方唯一定义处归 C1 §2.6-2、F1 侧措辞弱化（spike 展开序不升格为跨文档规格）；⑦性能数字改标「spike 演示值」，规格承诺仅保留 O(1)/O(N≤400) 两条。同步：TL;DR-F 8 mutation、§3.6 occupancy 读写行、§11.1 工程复核小项落账节 |
+| v1.4.2-draft | 2026-09-21 | **GW-P2-003 门终裁执行（A 案）**：§3.8 `unboardConnector` 主动弃梯触发源注记按 C1-E4 终裁收敛——from 格有空槽方可弃梯（校验含 from 格 canPlace，INV1 无豁免），满则拒绝、留梯保持暴露；§11.2 增 OQ-8 登记措辞统一方案落点 |
