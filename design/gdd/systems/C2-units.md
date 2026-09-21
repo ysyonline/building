@@ -100,6 +100,27 @@ UNDEFINED → DEPLOYED → ENGAGED → (ELIMINATED | WITHDRAWN)
 - **移动-攻击自由序**：同一轮内「先动后打 / 先打后动 / 只动 / 只打」皆可，约束仅两条——MP/AP 各自够用；**攻击发起后本轮 MP 清零**（防止「打一枪满场跑」，占位先于火力的行动面；清零规则表宿主 F3 键 `mpZeroOnAttack`，MVP=true，Alpha 可调）。此裁定同时关闭 C1 OQ-2 后半问。
 - 托管（C10）与手动共用同一行动 API，无特权（C1 §6.2 同源纪律）。
 
+### 2.4.1 攻击与目标（含「攻击设施」分支，回应 C3-E5）
+
+- **攻击发起**：`act(u, 攻击) ⇔ AP(u) ≥ 1 ∧ attackCapable(u) ∧ 目标资格通过`；资格判定在 C2（本节），命中/伤害在 C5。攻击发起后锁足（C2.4），同轮先攻击后移动被禁（C2-E8）。
+- **目标两类**（C3-E5 对表裁定）：
+  - **单位目标**：target=UnitId，资格=敌阵营单位（含 ON_CONNECTOR 取逻辑位置格）在近战可及范围内；「近战可及」=同格或四邻格（表宿主 F3 键 `meleeReach`，MVP=1）；梯上单位的被近战资格恒成立（其逻辑位置=梯底格）。`immuneToMeleeInteract=true` 的单位（冲车）不可作为近战目标。
+  - **设施目标**：target=FacilityId（C3-E5 场景：床弩格被登城匈奴攻击），资格=**近战单位与设施同格或相邻**（同 `meleeReach`）∧ 设施 state ≠ DESTROYED；伤害走 C5 `applyDamage(facilityId, n)` 入口（C3 §6.2 契约）。设施目标判定不读 `immuneToMeleeInteract`（该旗标只管单位域）。
+- **督队光环与目标选择（互审重点②口径确认，双方互认）**：光环 modifiers（C2.7）**只作用于单位**——影响 C5 单位受击/威胁与 C8 目标评分；**设施不受光环**——C3 的床弩目标选择、投放判定、射击资格不读任何 modifiers/hasAura。与 C3 v1.0 同口径成文。
+
+### 2.4.2 存活状态查询（回应 C3 §3.4「目标单位存活状态」与 crewAlive 的只读依赖）
+
+C2 向设施侧（C3）与结算侧（C5）提供存活/在场权威只读查询，签名并入 §3.6 UnitStatsQuery：
+
+```ts
+// 增补进 UnitStatsQuery（v1.1.0）：
+  isAlive(u: UnitId): boolean;              // state ≠ ELIMINATED（crewAlive 逐单位判定原语）
+  aliveDefendersIn(cellIds: readonly CellId[]): UnitId[];  // 指定格集上的存活守方单位列表
+  unitAt(cellId: CellId): readonly UnitId[];                // 格上全部在场单位（ON_CONNECTOR 取逻辑位置格）
+```
+
+边界纪律：C2 只出**单位域原语**（isAlive/aliveDefendersIn/unitAt），「投放大须邻域有兵」这类设施语义由 C3 用原语＋F1 getAdjacency 自行组装（其 C3.5 crewAlive 定义不动）——与 F1「占位模型对士气中立」同源的职责隔离：单位不懂设施、设施不懂单位、F1 两套账居中。
+
 ### 2.5 架梯动作（云梯步兵专属，F1 E1 的 C2 侧收口）
 
 ```
@@ -246,11 +267,15 @@ interface UnitStatsQuery {
   footprint(u: UnitId): 'NONE';
   canBoardLadder(u: UnitId): boolean;
   hasAura(u: UnitId): boolean;               // C8/C10 目标评估
+  isAlive(u: UnitId): boolean;               // C3/C5 存活判定原语（§2.4.2）
+  aliveDefendersIn(cellIds: readonly CellId[]): UnitId[];  // C3 crewAlive 组装原语（§2.4.2）
+  unitAt(cellId: CellId): readonly UnitId[]; // 格上在场单位查询（§2.4.2）
   applyMpDelta(u: UnitId, d: number): void;  // C1 扣费回写唯一入口
   resetPhaseResources(): void;               // F2 combat_phase_started 事件驱动
 }
 // 注：speed/actionDone/controlMode/setActionDone 四方法即 F2 §6.2 契约表「⚠ 待 C2 GDD 定签名」与
 // F2 OQ-1 的关闭交付——接口语义 F2 已锁，此处为签名定稿。
+// isAlive/aliveDefendersIn/unitAt 三方法为 C3 交叉互审对表交付（C3 §3.4 读写边界表挂账项），v1.1.0。
 ```
 
 ---
@@ -333,6 +358,9 @@ interface UnitStatsQuery {
 | 死亡事件 | C2→C6/C9/P1/P4 | eliminate 事件 {unitId, killer?, cause} | ✅ |
 | 层位部署校验 | C7→C2 | deploy(zone, templateId) 合法性（layerAccess∩zone.h 非空＋容量） | ✅ |
 | MP/AP 基准值 | F3→C2 | units.json（本文 §2.2/§2.3 工作假设为初值） | ✅ 键定，值 F3 宿主 |
+| 存活/在场原语 | C2→C3/C5 | `isAlive / aliveDefendersIn / unitAt`（§2.4.2）——**关闭 C3 §3.4 挂账签名** | ✅ v1.1.0 |
+| 攻击资格（含设施目标） | C2→C5/C3 | §2.4.1：近战可及 `meleeReach`、immuneToMeleeInteract 单位域过滤、设施目标资格判定 | ✅ v1.1.0 |
+| 光环-设施口径 | C2↔C3 互认 | 光环 modifiers 只作用单位，设施目标选择/投放/射击不读光环 | ✅ 双文互认（C2 §2.4.1 / C3 v1.0） |
 
 ### 6.3 输入约束（传递 P3）
 
@@ -435,6 +463,7 @@ interface UnitStatsQuery {
 | OQ-3 | 戍卒小队减员战力曲线 `squadHpPowerCurve` 形态 | C5/平衡轮 | C5 GDD |
 | OQ-4 | 督队赏格数值与「高价值」的 C8 反向权重 | C6/C8 | C6/C8 GDD（序列 #6/#7） |
 | OQ-5 | 攻方跨波存活单位的补给/增强（C2-E11 现状=裸保留） | C9/平衡轮 | C9 GDD（序列 #8） |
+| OQ-6 | 近战可及范围 `meleeReach` 初值（同格/四邻=1 的工作假设）与远程射击距离模型 | C5 | C5 GDD（序列 #5） |
 
 ---
 
@@ -444,3 +473,4 @@ interface UnitStatsQuery {
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版：五兵种契约/双资源行动经济（锁足裁定）/冲车不占格裁定（关闭 F1 OQ-3、C1 OQ-1/2）/督队 AuraStrategy 可替换框架（用户扩展性约束兑现）/UnitStatsQuery 关闭 C1 §6.2 ⚠ 行；F2 相位时点假设入 OQ-1 |
 | v1.0.1-draft | 2026-09-21 | F2 对齐回填（主理人验收后）：§2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），OQ-1 关闭；§3.6 UnitStatsQuery 增补 speed/actionDone/controlMode/setActionDone 四方法，关闭 F2 §6.2「⚠ 待 C2 定签名」与 F2 OQ-1；Unit 实体增补 controlMode 字段（F2 槽路由消费面） |
+| v1.1.0-draft | 2026-09-21 | C3 交叉互审对表（本人审 C3 的同步回填）：①§2.4 修正「滚木投放读戍卒 AP」笔误→设施操作与单位 AP 经济完全解耦（与 C3 §2.5 自由指令口径一致）；②新增 §2.4.1 攻击与目标——覆盖「攻击设施」分支（C3-E5 对表，target=FacilityId 资格判定在 C2、伤害入口 C5），并成文互认「光环只作用单位、设施不受光环」（互审重点②）；③新增 §2.4.2+§3.6 增补 isAlive/aliveDefendersIn/unitAt 三原语（C3 §3.4 挂账的存活查询签名，crewAlive 语义组装权留 C3）；④反向发现并已修复 F1 INV1 容量计入矛盾（F1 v1.3.2，设施不计入单位容量预算） |
