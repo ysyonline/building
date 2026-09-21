@@ -1,10 +1,10 @@
 # C6 粮饷经济系统 · GDD
 
-> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-006 ｜ GDD 撰写序列 #7a
+> **状态**：v1.0.3-draft（2026-09-21）｜ GW-P2-006 ｜ GDD 撰写序列 #7a
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/F2-phase-scheduler.md` v1.0.3（§2.2-D②/D③ 结算窗口、§3.2 DPhaseLedger.incomeSettled 钩子、F2.7 援军顺延、E13 堆积、E14 终局数据包格式约定、§6.2 收入/援军钩子契约行、§3.3 battle_won/lost 载荷；v1.0.3=撰写期勘误 D③ 括注引用，零实质变更）｜ `design/gdd/systems/C2-units.md` v1.1.1（§2.4 双资源正交口径、§2.7 死亡事件与抚恤挂点、§2.6 督队赏格字段归属、§6.2 eliminate 事件契约、§10 OQ-4）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§2.6 修理仅 A 相位/费用归 C6/repair 接口语义/DESTROYED 重建、E5 设施受击面）｜ `design/gdd/systems/C5-combat-resolution.md` v1.1.1（E13 killed 单点事件/C5.7 结算序）｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0（§9 七项转派走查）｜ 概念稿定稿 v1.0（§5 单一资源三源口径、P4 经济压力设计意图）｜ `design/systems-breakdown.md` v1.0（§1.2 C6 职责、§2.2 链 B、§4 C6=数值载体、§6.2 督队裁定）
 > **范围红线**：本文只裁 C6——单一资源「粮饷」的资金模型：收入三源（屯田/击杀缴获/烽燧补给线）的结算时点与入账序、缴获数值基准、守方援军时刻表的数据契约、支出侧费用查询/扣费契约（供 C7 消费）、终局 BattleEndReport 格式（F2-E14 数据包的 C6 侧、X2 交割面）。**不写**建造/修理/部署的指令校验与流程（C7）、相位窗口与 D 相位时序权威（F2）、killed 事件的产生与伤害结算（C2/C5）、敌军波次构成与入场时刻表（C9）、继承与关间结转规则（X2）、任何数值定值（F3 economy.json 表宿主）。
-> **对齐状态**：与 F2 v1.0.3 / C3 v1.0.3 / C2 v1.1.1 / **C5 v1.2** / C8 v1.0 / **C7 v1.0.1** 逐条对表零冲突（§7.3 逐项列）；C2 OQ-4（督队赏格数值）**半销账**——键位本文裁定挂 economy.json，数值定值留灰盒；C8 §9 七项转派走查无一与 C6 交叉（零承接声明，§7.3）；F2 §6.2「收入/援军钩子」行本文落签名闭合。**C7 互审双向闭环（GW-P2-008 合流）**：§9.1 交割面经 C7 消费回执＋C6 侧走查双向确认（C7 §9.1 零异议回执属实，走查详情见 §7.3-C7 行）；OQ-3/OQ-4 经 C7 v1.0 终裁销账（§10）。
+> **对齐状态**：与 F2 v1.0.3 / C3 v1.0.3 / C2 v1.1.1 / **C5 v1.2** / C8 v1.0 / **C7 v1.0.1** 逐条对表零冲突（§7.3 逐项列）；C2 OQ-4（督队赏格数值）**半销账**——键位本文裁定挂 economy.json，数值定值留灰盒；C8 §9 七项转派走查无一与 C6 交叉（零承接声明，§7.3）；F2 §6.2「收入/援军钩子」行本文落签名闭合。**C7 互审双向闭环（GW-P2-008 合流）**：§9.1 交割面经 C7 消费回执＋C6 侧走查双向确认（C7 §9.1 零异议回执属实，走查详情见 §7.3-C7 行）；OQ-3/OQ-4 经 C7 v1.0 终裁销账（§10）。**X2 联裁回执（GW-P2-013a）**：OQ-2 treasuryCarryRule 终裁 B 案已销账、重募费用键 MVP 零新键已销账、BattleEndReport v1.1 追加字段已回填注记（§3.3，定义权 X2 v1.0 §2.2）。
 
 ---
 
@@ -188,7 +188,12 @@ interface BattleEndReport {               // 随 battle_won/lost payload.stats �
     attackerKilled: number; defenderLost: number;    // P4 战报 / X1 结算画面消费
   };
   garrisonCasualties: Array<{ templateId: UnitTemplateId; count: number }>;  // X2 重募核算输入
-  // survivorRoster / facilityCarry 等继承细目：X2 GDD 动笔时回填追加（追加式演化，不改已有字段语义）
+  // —— v1.1 追加字段（X2 v1.0 §2.2 回填定义，追加位置文末，全部可空/恒 null；v1 既有字段零改动）：
+  // survivorRoster: SurvivorEntry[]  // 幸存者名单（LOSE 恒 []）；定义权 X2 §2.2
+  // facilityCarry: null              // MVP 恒 null（裁定 B 设施不携带）；Alpha 声望建筑占位
+  // wallCarry: null                  // MVP 恒 null（裁定 C 墙体不携带）；Alpha 城墙工事度占位
+  // treasuryCarry: null              // MVP 恒 null（裁定 D B 案）；Alpha C 案占位（OQ-2 销账联动）
+  // survivorRoster / facilityCarry 等继承细目：X2 v1.0 §2.2 已正式回填定义（v1.1 追加式，不改已有字段语义）
 }
 ```
 
@@ -368,7 +373,7 @@ interface IncomeReport {
 | C7 建设部署 | §9.1 交割面（报价/扣费/费用键/窗口/分工边界） | 序列 #7b（并行） |
 | P4 HUD | §6.1 全部语义 | — |
 | P3 | canAfford 报价反馈（§6.3 约束） | — |
-| X2 继承 | BattleEndReport（结转基准＋阵亡统计）；treasuryCarryRule 裁定 | 序列 #9（回填位已标） |
+| X2 继承 | BattleEndReport（结转基准＋阵亡统计）——**v1.1 追加字段已回填（X2 v1.0 §2.2，见 §3.3 注记）**；OQ-2 treasuryCarryRule 终裁 B 案已销账（§10）；重募费用键 MVP 零新键（X2 §2.1-C3，§10） | 已落盘 X2 v1.0（序列 #9） |
 | X5 模拟器 | 零随机重放承诺＋账本对拍锚（income_settled / treasury 曲线） | Alpha |
 | C2/C8 | 督队赏格键位（OQ-4 承接） | 已落盘侧零改动 |
 
@@ -436,9 +441,9 @@ interface IncomeReport {
 |---|---|---|---|
 | 1 | C2 §10 OQ-4 | 督队赏格数值 | **半销账**：键位 `loot.perTemplate.warlordEscort` 本文裁定（economy.json）；数值定值灰盒轮；「高价值」AI 侧消费已由 C8 §2.5 自洽解释（leadBias），C2 侧措辞统一随 C8 §9.1-3 回派项走 |
 | 2 | F2 §6.2 | 收入/援军钩子行 | **销账**：EconomySettlementApi 签名落定（§3.4） |
-| 3 | F2-E14 | 战利品/继承数据包 C6 半边 | **销账（初版）**：BattleEndReport v1（§3.3）；X2 扩展字段回填标注在位 |
+| 3 | F2-E14 | 战利品/继承数据包 C6 半边 | **销账（初版）→ v1.1 完整回填（X2 v1.0 §2.2，2026-09-21 回执批）**：BattleEndReport v1.1 四追加字段注记入 §3.3（survivorRoster/facilityCarry/wallCarry/treasuryCarry，定义权 X2） |
 | 4 | C8 §9 七项转派 | — | **零承接**：逐项走查无一与 C6 交叉（§7.3） |
-| 5 | C2 §2.7 | 「抚恤/重募成本归 C6/X2」C6 半边 | **收口**：关内零扣费裁定（§2.4）；重募费用键归 X2 GDD 裁定（OQ-2） |
+| 5 | C2 §2.7 | 「抚恤/重募成本归 C6/X2」C6 半边 | **收口**：关内零扣费裁定（§2.4）；重募费用键裁定 **MVP 零新键**（X2 v1.0 §2.1-C3，幸存者免费＋阵亡走 C7 DEPLOY 全价；retrain.* Alpha 预留挂 F3）——2026-09-21 X2 回执批销账（§10 OQ-2） |
 
 ---
 
@@ -447,7 +452,7 @@ interface IncomeReport {
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
 | OQ-1 | economy.json 全键数值定值（收入/赏格/造价/修理单价） | 平衡轮 | 灰盒可玩性轮统一校准（方向红线见 §3.5 注） |
-| OQ-2 | 关间结转规则（treasuryCarryRule 三选一）＋重募费用键是否设立 | X2 | X2 GDD（序列 #9；本文建议方向：部分结转＋关卡初值下限，保持每关起步压力——终裁归 X2） |
+| OQ-2 | ~~关间结转规则（treasuryCarryRule 三选一）＋重募费用键是否设立~~ | ~~X2~~ | **已关闭（X2 联裁两案销账，GW-P2-013a 回执批）**：①treasuryCarryRule **终裁=B 案（每关 F3 固定初值 `campaign.initialTreasury.L{n}`，X2 v1.0 §2.1-D；主理人维持 X2 裁定，2026-09-21）**——曲线保护（单关封闭调平，MVP 无平衡迭代预算下唯一可控形态）×战役感（幸存者名单已承担可感载体）×实现最简（关初直读卡值）；C6 原建议 C 案（部分结转＋下限）转 **Alpha 占位**（`treasuryCarry` 字段位已留，X2 §2.2，启用时 X1 关初读 `max(F3 下限, 结转额)` 单行改动）；C6 侧零结构改动——`treasuryCarryRule` 键保留 economy.json（值语义改为「终裁枚举 B」），因 BattleEndReport.treasuryFinal 仍为关末自然终点（X1 结算画面复盘用）；②重募费用键 **MVP 零新键**（X2 §2.1-C3）——幸存者免费入场（购买成本既往关已付）、阵亡补充=C7 标准 DEPLOY 全价（既有 `cost.deploy.garrisonSquad` 照旧）、`campaign.retrain.costPerUnit`（打折重募）Alpha 预留挂 F3（X2 §3.2），economy.json 侧无动作 |
 | OQ-3 | ~~WALL_REPAIR 修墙指令面与费用模型对接细节~~ | ~~C7/F1~~ | **已关闭（C7 v1.0，GW-P2-008 合流）**：修墙=GATE 段修理（范围裁定 C7 §2.6），指令面 WALL_REPAIR{connectorId, Δhp}，PurchaseItem 按夹取 Δ′ 组装（接口零改动）；数据前提=F1 接口需求 W-1，未落地则指令封闭，`cost.wallRepair.perHp` 键位保留待启用 |
 | OQ-4 | ~~撤收/取消退费是否产品化~~ | ~~C7~~ | **已关闭（C7 v1.0，GW-P2-008 合流）**：不产品化（采纳本文建议），纠错走三条梯度：戍卒重置零费、设施拆除零退费、拆除重建全价（C7 TL;DR-C/§2.5）；退款比例键 `cost.dismantleRefundRatio`（宿主=economy.json，本文 §3.5 已列）列 Alpha 平衡预留位，启用即重开「无退款通道」评审，与 C7 OQ-4 互见 |
 | OQ-5 | Alpha 三恢复位启用评估：第二资源／supply 节点网络／farm 屯田格 | Alpha 评审 | Alpha 启动评审（结构位已留，机制另裁） |
@@ -461,3 +466,4 @@ interface IncomeReport {
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-006 序列 #7a）：单一资源资金模型；五主裁点成文——①D② 固定结算序 farm→supply→loot＋缴获双段式（击杀流水登记/D② 入账）；②缴获按兵种固定值（督队赏格键位承接 C2 OQ-4）；③④补给线/屯田双简化裁定（固定收入＋显式 Alpha 恢复位）；⑤破产=禁止下单（无欠饷）＋援军免费裁定；BattleEndReport v1（X2 回填位标定）；EconomyQuery/Command 交割面（→C7 单列）；EconomySettlementApi 闭合 F2 §6.2 钩子行；零 F4 消费确定性红线（INV-C6-5）；边缘情况 E1-E11；上游契约走查零冲突（§7.3，含 F2 §2.2-D③ 括注笔误上报） |
 | v1.0.1-draft | 2026-09-21 | F2 勘误联动升引（主理人核验代提）：F2 §2.2-D③ 括注笔误经主理人核实（E6=留梯单位行动槽，援军顺延本体是 E13），F2 落 v1.0.3 勘误；本文 header 上游依据/对齐状态/SC-3/§7.3 引用同步升 F2 v1.0.3，零实质变更 |
 | v1.0.2-draft | 2026-09-21 | **C7 互审合流批 008（主理人授权执行）**：①§2.3「无退款通道」措辞精化——钱/世界两层辨析（已付费用不可撤销退回 vs 拆除/重置语义归 C7），-2-2 走查发现 1 采纳；②§2.1「余额=D② 后快照」→「实时值（A 相内无收入源，恒定基准）」，-2-2 走查发现 2 采纳；③§3.5 补 `cost.dismantleRefundRatio` 键行（宿主=economy.json，启用即重开退款裁定，与 C7 OQ-4 互见）；④§10 OQ-3/OQ-4 销账（文案=C7 v1.0 §9.3 原文，合流批）；⑤§7.3 补 C7 v1.0.1 互审零冲突行＋header 对齐状态同步（含 C5 v1.2 引用升版） |
+| v1.0.3-draft | 2026-09-21 | **X2 回执批（GW-P2-013a，主理人授权代落）**：①§10 OQ-2 销账——treasuryCarryRule 终裁 B 案（每关 F3 固定初值，X2 v1.0 §2.1-D；主理人维持 X2 裁定），C 案转 Alpha 占位（treasuryCarry 字段位已留）；②重募费用键销账——MVP 零新费用键（幸存者免费＋阵亡走 C7 DEPLOY 全价），campaign.retrain.* Alpha 预留挂 F3（X2 §2.1-C3）；③BattleEndReport v1.1 回填注记——§3.3 处标注四追加字段（survivorRoster/facilityCarry/wallCarry/treasuryCarry，追加式零改动，定义权 X2 §2.2）；④§7.2 X2 行与 §9.2 挂账 #3/#5 同步刷新。零结构性改动（C6 全部接口/键位/结算语义不变） |
