@@ -2,7 +2,7 @@
 
 > **状态**：v1.0-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #2
 > **产出**：文策渊（design-strategist）
-> **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.2-draft（邻接图/连接器/容量契约）｜ `design/systems-breakdown.md` §5（MVS 条件 3：云梯=动态连接器在此正式采纳）｜ 概念稿 §4 核心循环（C 阶段「按速度序逐单位行动」）
+> **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.3-draft（邻接图/连接器 9 字段含 accessPolicy/容量契约；C1 邻接消费需按阵营过滤 accessPolicy——BOTH 全量、DEFENDER_ONLY 仅守方可见，V11 同口径）｜ `design/systems-breakdown.md` §5（MVS 条件 3：云梯=动态连接器在此正式采纳）｜ 概念稿 §4 核心循环（C 阶段「按速度序逐单位行动」）
 > **范围红线**：本文只裁 C1——移动资源语义、路径计算与执行、攀爬时序、确定性规则、对内对外接口。**不写**单位移动点基准值与层位许可数据（C2）、AI 目标选择（C8）、托管决策（C10）、攀爬暴露态与坠落伤害数值（C5）、移动范围渲染（P1/P3）。
 > **对齐状态**：spike（程基岩，GW-P2-SPIKE-F1）含 A* 跑通项，报告截至本文未落盘；凡实现选型条目标注 **「待与 spike 对齐」**（§11），设计侧给出需求约束与推荐项，不单方定实现。
 
@@ -345,3 +345,4 @@ interface MoveQuery {
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版：移动模型/攀爬时序/确定性纪律/执行报告契约；正式采纳云梯=动态连接器（MVS 条件 3 落点）；spike 对齐项入 §9，开放问题入 §10 |
+| v1.0.1-draft | 2026-09-21 | 主理人校对：上游依据引用 F1 v1.2→v1.3；§2.3 补 accessPolicy 邻接过滤口径（BOTH 全量/DEFENDER_ONLY 仅守方可见，与 F1 §2.4.2 消费契约、V11 同源）——攀爬发起 canClimb（C1.7）对 DEFENDER_ONLY 边天然只可能由守方单位发起，无新增判定 |
