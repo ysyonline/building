@@ -1,6 +1,6 @@
 # C2 单位系统 · GDD
 
-> **状态**：v1.0-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
+> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
 > **产出**：文策渊（design-strategist-2）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.3（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.1（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
 > **范围红线**：本文只裁 C2——兵种数据契约、属性容器、占用与生命状态、行动经济、MVP 督队光环的**可替换策略框架**。**不写**：移动执行（C1）、伤害/命中/克制的结算数值（C5）、匈奴决策（C8）、士气和连锁溃退（C11 Alpha）、设施（C3）。
@@ -72,7 +72,7 @@ UNDEFINED → DEPLOYED → ENGAGED → (ELIMINATED | WITHDRAWN)
 | `WITHDRAWN` | 攻方主动撤退（Alpha 才开放，MVP 预留枚举） | 清空 | 不进 MVP 校验 |
 
 - 状态机由 C2 持有，**占位迁移全部经 F1 写白名单**（placeUnit/moveUnit/removeUnit），C2 不直改 occupantIds——INV1/INV3 的纪律同 F1 §3.8。
-- 每轮 MP/AP 重置时点是 F2 相位契约的下游（挂 F2 GDD 的「攻防结算相位开始」事件），本文按「相位开始事件到达即重置」实现，具体时序以 F2 为准。
+- 每轮 MP/AP 重置时点：**F2 事件 `combat_phase_started`（B→C 相位迁移时发出，F2 §3.3 事件表）驱动 `resetPhaseResources()`**——C① MP 重置（F2 §2.4 时序）即此事件；AP 同点重置（F2 行动槽模型对 1 AP 兼容，F2.2）。v1.0.1 已按 F2 v1.0 落盘版对齐事件名，OQ-1（F2 相位时点）关闭。
 
 ### 2.2 守方：戍卒小队
 
@@ -182,6 +182,7 @@ interface Unit {
   placement: UnitPlacement;        // F1 §2.6：IN_CELL | ON_CONNECTOR | OFFBOARD
   cellId?: CellId;                 // placement=IN_CELL 时有效（ON_CONNECTOR 时=F1 逻辑位置=梯底格）
   auraStrategyId?: string;         // 仅有光环的单位非空（MVP 唯督队），表驱动，禁硬编码判断
+  controlMode: 'MANUAL' | 'AUTO';  // 行动槽路由数据（F2 消费）；默认：ATTACKER 恒 AUTO，DEFENDER 默认 MANUAL 可切
   flags: UnitFlags;                // §3.3 行为旗标
 }
 ```
@@ -236,13 +237,19 @@ interface UnitTemplate {
 interface UnitStatsQuery {
   MP(u: UnitId): number;                     // 当前 MP（C1.9 扣费回写经 applyMpDelta）
   AP(u: UnitId): number;                     // 当前 AP（攻击前检查，C5 消费）
+  speed(u: UnitId): number;                  // 速度序排序键（F2 C① 消费，值 F3 宿主）
+  actionDone(u: UnitId): boolean;            // 行动经济报告（F2 行动槽关闭判据：AP 耗尽 ∨ 显式放弃）
+  controlMode(u: UnitId): 'MANUAL' | 'AUTO'; // F2 槽路由（C10.resolveSlot 消费）
+  setActionDone(u: UnitId, done: boolean): void; // 放弃/行动结束回写（P3「结束行动」→C2，F2 槽关闭）
   layerAccess(u: UnitId): readonly Height[];
   footprint(u: UnitId): 'NONE';
   canBoardLadder(u: UnitId): boolean;
   hasAura(u: UnitId): boolean;               // C8/C10 目标评估
   applyMpDelta(u: UnitId, d: number): void;  // C1 扣费回写唯一入口
-  resetPhaseResources(): void;               // F2 相位开始事件驱动
+  resetPhaseResources(): void;               // F2 combat_phase_started 事件驱动
 }
+// 注：speed/actionDone/controlMode/setActionDone 四方法即 F2 §6.2 契约表「⚠ 待 C2 GDD 定签名」与
+// F2 OQ-1 的关闭交付——接口语义 F2 已锁，此处为签名定稿。
 ```
 
 ---
@@ -317,6 +324,7 @@ interface UnitStatsQuery {
 | 契约 | 提供方→消费方 | 内容 | 状态 |
 |---|---|---|---|
 | 单位属性接口 | C2→C1 | §3.6 UnitStatsQuery（MP/AP/layerAccess/footprint/canBoardLadder/applyMpDelta）——**关闭 C1 §6.2「⚠ 待 C2 定签名」行** | ✅ |
+| 速度序/槽路由数据 | C2→F2 | `speed(u)` / `actionDone(u)` / `controlMode(u)` / `setActionDone`（§3.6）——**关闭 F2 §6.2「⚠ 待 C2 定签名」行与 F2 OQ-1** | ✅ v1.0.1 |
 | 伤害转发 | C5→C2 | applyDamage(u, dmg, source?)，C2 负责死亡连锁 | ✅ |
 | 行动经济 | C2→C5/C4/C10 | AP 检查＋C2.4 锁足规则；攻击后禁移动 | ✅（数值 C5 表） |
 | 光环数据 | C2→C8/C10/C5 | hasAura() + AuraEffect.modifiers 合成结果（C2.7） | ✅ MVP=PRESENCE 通道 |
@@ -340,7 +348,7 @@ interface UnitStatsQuery {
 | F1 地形网格 | 结构契约 | 占位容量（R1）/承载模型（§4.4）/占用状态机（§2.6）/E1·E2·E7 裁定/写白名单 mutation |
 | C1 寻路移动 | 行为契约 | MP 消费语义/攀爬时序/BLOCKED_TOP 留梯/MoveReport（§2.4 锁足与其执行报告对齐） |
 | F3 数值表 | 数值宿主 | `units.json`（新建：本文模板结构）＋`grid-capacity.json` 容量键＋`mpZeroOnAttack`/`auraRadius` 等键 |
-| F2 相位调度 | 时序契约 | 相位开始事件（MP/AP 重置时点）——**依赖 F2 GDD 的相位边界定义，本文按「攻防结算相位开始」假设实现，F2 定稿后对齐** |
+| F2 相位调度 | 时序契约 | `combat_phase_started` 事件（B→C 迁移，F2 §3.3）驱动 §2.1 重置——**v1.0.1 已对齐，OQ-1 关闭** |
 | C5 攻防结算 | 结算契约 | 伤害产出→applyDamage；光环 modifiers 合成消费（C2.7 下游） |
 | F4 确定性随机 | 纪律 | MVP C2 无随机（光环计算纯函数）；预留下 |
 
@@ -361,7 +369,7 @@ interface UnitStatsQuery {
 ### 7.3 与并行 GDD 的协调记录
 
 - C1（design-strategist，v1.0.1）：其 §6.2 契约表「MP/许可/footprint ⚠ 待 C2 定接口签名」由本文 §3.6 关闭；其 OQ-1（冲车 footprint）由本文裁定 C 关闭（结论：C1 无需扩展，footprint 恒 NONE）；其 OQ-2（MP 基准/移动-行动经济）由本文 §2.4 关闭。**C1 文件本体不动**（结论对 C1 无结构性影响），记录于本文变更日志。
-- F2（design-strategist，写作中）：本文 §2.1/§2.4 的相位重置时点按「攻防结算相位开始」事件假设；F2 落盘后若相位命名/时序不同，只改 §2.1 一行＋F2 事件名，结构不动——列入 §10 对齐项。
+| F2（design-strategist，v1.0 已落盘） | 相位时点 | **OQ-1 关闭**：C2 §2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），语义与原假设一致，零冲突 |
 
 ---
 
@@ -413,7 +421,7 @@ interface UnitStatsQuery {
 | 4 | F1 §5-E1 | 架梯选址约束归 C2 | **收口**（§2.5：约束在 C2，偏好评估归 C8，F1 零新增 API） |
 | 5 | F1 §11.2 OQ-3 | 冲车是否占格 | **关闭**（同 #2，方向：不占格） |
 | 6 | F1 §6.2 士气中立行 | 光环查询复用现有接口 | **履行**（C2.6 只消费 F1 snapshot/邻接，零新增） |
-| 7 | F2（进行中） | 相位重置事件名/时序 | **待对齐**（§2.1 假设实现，F2 落盘后 §10-1 对齐） |
+| 7 | F2（v1.0 落盘） | 相位重置事件名/时序 | **关闭**（对齐 `combat_phase_started`）；附带交付：§3.6 增补 speed/actionDone/controlMode/setActionDone 关闭 F2 §6.2 ⚠ 行与 F2 OQ-1 |
 
 ---
 
@@ -421,7 +429,7 @@ interface UnitStatsQuery {
 
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
-| OQ-1 | F2 相位事件名与 MP/AP 重置时点（§2.1 假设「攻防结算相位开始」） | F2 | F2 GDD 落盘（本轮序列 #3） |
+| OQ-1 | ~~F2 相位事件名与 MP/AP 重置时点~~ | ~~F2~~ | **已关闭（v1.0.1）**：对齐 `combat_phase_started`（F2 §3.3），语义一致零冲突 |
 | OQ-2 | 光环 modifiers 的 stat 枚举最终集合（threat/actionPriority/moveMp 初版）与合成上限 | C5/C8 | C5 GDD（序列 #5） |
 | OQ-3 | 戍卒小队减员战力曲线 `squadHpPowerCurve` 形态 | C5/平衡轮 | C5 GDD |
 | OQ-4 | 督队赏格数值与「高价值」的 C8 反向权重 | C6/C8 | C6/C8 GDD（序列 #6/#7） |
@@ -434,3 +442,4 @@ interface UnitStatsQuery {
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版：五兵种契约/双资源行动经济（锁足裁定）/冲车不占格裁定（关闭 F1 OQ-3、C1 OQ-1/2）/督队 AuraStrategy 可替换框架（用户扩展性约束兑现）/UnitStatsQuery 关闭 C1 §6.2 ⚠ 行；F2 相位时点假设入 OQ-1 |
+| v1.0.1-draft | 2026-09-21 | F2 对齐回填（主理人验收后）：§2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），OQ-1 关闭；§3.6 UnitStatsQuery 增补 speed/actionDone/controlMode/setActionDone 四方法，关闭 F2 §6.2「⚠ 待 C2 定签名」与 F2 OQ-1；Unit 实体增补 controlMode 字段（F2 槽路由消费面） |
