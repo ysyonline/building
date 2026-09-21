@@ -47,10 +47,10 @@ F1 定义多层立体棋盘的**纯数据模型与结构契约**：坐标系、�
 | B | 高度 | h∈{0 地面, 1 墙顶/马道, 2 烽燧顶}，符号常量枚举，禁魔法数字 |
 | C | 格子类型 | 7 类：WALL（结构体）/ PARAPET / RAMPART_WALK / GATE（门洞）/ SLOPE / GROUND / BEACON_FLOOR；无「洞/坑」类，垂直地形差只允许出现在连接器与墙结构处 |
 | D | **占位容量（R1 结论）** | 按格类型分容量：垛口 1 单位、马道 2、地面 4、门洞 1、烽燧顶 1、坡道 1、墙结构 0；垛口=1×1 独占位；**堆叠上限 4**；设施全部独占；容量数值全部 F3 表宿主可调 |
-| E | 连接器 | 8 字段统一数据结构（id/from/to/connKind/orient/occupancy/status/lifetime）；SLOPE+LADDER 共用；LADDER 承载与顶端占用分离（§4.4） |
+| E | 连接器 | **9 字段**统一数据结构（id/from/to/connKind/orient/accessPolicy/occupancy/status/lifetime）；SLOPE+LADDER 共用；坡道/门洞 BOTH 双方共用、烽燧内部梯 DEFENDER_ONLY 守方专属；LADDER 承载与顶端占用分离（§4.4） |
 | F | 存取模型 | 只读查询接口供下游；写操作收敛为 6 个显式 mutation（§3.8），全部带合法性校验、发事件、可序列化——这是存档（F5）与模拟器（X5）的地基 |
 | G | 查询预算 | 状态/邻接/高度差/容量查询 O(1)；全图快照 O(N)（N≈200-400）供 AI 评估；图变更时脏标记增量重建邻接 |
-| H | 关卡校验 | 17 条加载期校验规则（§8.4）+ 三关最小结构判据（§10.4）；不可达=硬错误拒绝加载 |
+| H | 关卡校验 | 17 条加载期校验规则（§8.4，V11 语义=攻方在 ACTIVE∧BOTH 边图的可达范围）+ 三关最小结构判据（§10.4）；攻方不可达=硬错误拒绝加载 |
 
 ---
 
@@ -109,7 +109,7 @@ F1 定义多层立体棋盘的**纯数据模型与结构契约**：坐标系、�
   - `LADDER`（云梯）：**动态**，由 C2/C8 在战局中架设生成，可被摧毁，断边即失效。
 - 邻接图 = {各层水平四邻接边} ∪ {全部 status=ACTIVE 的连接器边}。寻路、AI、高度查询一律走此图。
 
-#### 2.4.2 数据结构（8 字段，引擎无关 TS）
+#### 2.4.2 数据结构（9 字段，引擎无关 TS）
 
 ```ts
 interface Connector {
@@ -118,6 +118,7 @@ interface Connector {
   to: CellRef;           // 高端格 (x,z,h=1|2)
   connKind: 'SLOPE' | 'LADDER';
   orient: 'AXIAL' | 'FRONTAL';   // AXIAL=顺墙爬（登马道）｜FRONTAL=迎面爬（登垛口）
+  accessPolicy: 'BOTH' | 'DEFENDER_ONLY';  // 通行权：BOTH=双方共用（默认）｜DEFENDER_ONLY=守方专属（烽燧内部梯）
   occupancy: OccupancyState;     // {units: UnitId[], orderedByMovePriority} ← 独立容量模型，不占用格容量
   status: 'ACTIVE' | 'DESTROYED' | 'INACTIVE';
   lifetime: {
@@ -128,6 +129,7 @@ interface Connector {
 ```
 
 **静态坡道落格规则**：两端格必须为 `SLOPE` 类型格；坡道格自身遵守格容量（§3.1）。
+**accessPolicy 消费契约（传递 C1/C8）**：邻接图按阵营过滤——`BOTH` 边全量进入图；`DEFENDER_ONLY` 边仅守方寻路/AI 可见，匈奴方视该边不存在。匈奴 AI 的可达范围评估（V11 校验同理）在 `ACTIVE ∧ BOTH` 边图上运行。
 
 #### 2.4.3 方向语义与玩法含义
 
@@ -292,8 +294,7 @@ interface TerrainQuery {
 ### 4.1 格 ID 与坐标
 
 - `F1.1 ｜ CellId = \`${x}_${z}\`（层内局部坐标）`
-- 世界尺度：**1 格 = 4 米**（MVP 定值；定值本身非平衡变量，但走 F3 常量表、禁硬编码）。视觉对齐备忘 §4.1 贴花密度按此假设，无需回传复核。
-  - **格尺寸初值建议（回应视觉备忘 Q6）**：1 格 = 4 世界单位（与林绘澄贴花密度假设一致）；此值属渲染常量，正式定值在 spike 相机标定（Q1）后由 P1/P2 GDD 收口，若偏离 4m 需回传美术复核 §4.1 贴花密度。
+- `F1.2 ｜ 世界尺度：1 格 = 4 米（MVP 定值，渲染常量走 F3 表、禁硬编码；回应视觉备忘 Q6）`——与林绘澄 §4.1 贴花密度假设一致，无需回传复核；正式定值在 spike 相机标定（视觉备忘 Q1）后由 P1/P2 GDD 收口，若偏离 4m 需回传美术复核。世界坐标换算仅经**单点适配器**注入（核心逻辑层零 Three.js 依赖，决策⑥落点），适配器归属「待与 spike 对齐」§11.1-2。
 
 ### 4.2 邻接
 
@@ -464,12 +465,12 @@ interface TerrainQuery {
 | V3 | 至少 1 条 h0→h1 连接器；至少 1 条 →h2 连接器 | ERROR |
 | V4 | BEACON_FLOOR 全图唯一 | ERROR |
 | V5 | 连接器 from/to 高度差 =1 且指向合法格类型（PARAPET/RAMPART_WALK/BEACON_FLOOR） | ERROR |
-| V6 | 边界格 passable 检查：开放端 GARD 带外无格；z 方向两侧墙结构封边 | ERROR |
+| V6 | 边界格 passable 检查：开放端 GROUND 带外无格；z 方向两侧墙结构封边 | ERROR |
 | V7 | 所有 GATE 均为静态 Connector（不裸置 GATE 格） | ERROR |
 | V8 | PARAPET/马道仅出现于 h=1；BEACON_FLOOR 仅 h=2 | ERROR |
-| V9 | SLOPE 类 Connector 恒无 lifetime（不可摧毁） | ERROR |
+| V9 | SLOPE 类 Connector 恒无 lifetime（不可摧毁）；beacon 内部梯 accessPolicy=DEFENDER_ONLY | ERROR |
 | V10 | connectors id / cells id 全局唯一 | ERROR |
-| V11 | 敌方入口至烽燧格 BFS 可达（ACTIVE 边图） | ERROR |
+| V11 | 敌方入口至烽燧格 BFS 可达（ACTIVE ∧ BOTH 边图，即攻方视角可达；DEFENDER_ONLY 边不计入） | ERROR |
 | V12 | 部署区全部 passable 且在守军侧 | ERROR |
 | V13 | CellKind 枚举外值（含 RUBBLE/TRENCH 等 Alpha/Beta 预留类型）拒绝 | ERROR |
 | V14 | W 超出 [12,20] | WARN |
@@ -497,7 +498,9 @@ interface TerrainQuery {
     { "id": "sl_L1_2", "connKind": "SLOPE", "orient": "FRONTAL",
       "from": "12_1_h0", "to": "12_1_h1" },
     { "id": "sl_L1_gate", "connKind": "SLOPE", "orient": "FRONTAL",
-      "from": "7_0_h0", "to": "7_0_h1", "tag": "GATE" }
+      "from": "7_0_h0", "to": "7_0_h1", "tag": "GATE" },
+    { "id": "sl_L1_beacon", "connKind": "SLOPE", "orient": "AXIAL",
+      "accessPolicy": "DEFENDER_ONLY", "from": "13_1_h0", "to": "13_1_h2" }
   ],
   "beacon": { "cellId": "13_1_h2", "durabilityRef": "beacon.json" },
   "deployZones": [
@@ -599,3 +602,5 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | v1.0-draft | 2026-09-21 | 首版：八节+关卡数据结构+三关参数草案；R1 结论落定；spike 未落盘，对齐项入 §11.1 |
 | v1.1-draft | 2026-09-21 | 回收视觉备忘 Q4/Q5/Q6：E11 增补坡道通行权裁定（双方共用）、E15 增补半透明层单位可选中口径、F1.2 增补 1格=4m 格尺寸初值；剩余 Q1-Q3 归 spike、OQ-1~5 依表流转 |
 | v1.2-draft | 2026-09-21 | 二轮对齐：E11 坡道通行权补全（攻方限步兵+烽燧梯守方专属+三级视觉码引用备忘 v1.1）、增补坡头格战术热点（decal 提示优先级，C7/P3 输入项）；与 systems-breakdown §6.4/§6.5 完全对齐 |
+| v1.3-draft | 2026-09-21 | accessPolicy 字段落入契约：Connector 增至 9 字段（守方专属烽燧梯的数据前提）；§3.5 枚举清单同步；V5 补烽燧梯 h0→h2 例外、V9 补 accessPolicy 校验、V11 改「攻方可抵达范围」修复与守方专属梯的可达性矛盾；§9.1 JSON 补烽燧连接器与 DEFENDER_ONLY 示例 |
+| v1.3.1-draft | 2026-09-21 | 主理人收敛校对：TL;DR 行 E/H 补 accessPolicy 语义与 V11 新口径；§2.4.2 增补 accessPolicy 消费契约（C1/C8 邻接过滤规则）；V11 表行同步「ACTIVE∧BOTH 边图」；并发编辑冲突全部收敛，双实例口径一致 |
