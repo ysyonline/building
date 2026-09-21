@@ -1,10 +1,10 @@
 # C5 攻防结算系统 · GDD
 
-> **状态**：v1.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
+> **状态**：v1.1.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/C2-units.md` v1.1.1（MP×AP 双资源/mpZeroOnAttack 锁足/squadHP 池/存活原语 isAlive·aliveDefendersIn·unitAt）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.2（俯射弹道走廊提案 §2.2/毁梯链 C3.6/canDrop 曼哈顿+轴向度量 C3.5）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（高度层 h∈{0,1,2}/heightDiff/连接器 occupancy/E2 坠落位移链/destroyConnector）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（BLOCKED_TOP 留梯排队/攀爬原子时序/EXPOSED 暴露态）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.1（E10 伤害仅 C 相位/beacon 断言/D④ 检查点）｜ `design/spikes/graybox-f1-report.md` §6（R2 性能回证：网格步进 0.28μs/发 vs 真射线 115μs/发）｜ 概念稿 §5 战斗公式草案＋克制三原则
 > **范围红线**：本文只裁 C5——命中/伤害结算流程、克制系数与高度修正的消费语义、床弩穿透弹道的目标集语义（R2 终裁）、礌石毁梯结算序、坠落/砸落/坠落暴露三类伤害入口、梯上受击面、结算原子性与确定性。**不写**攻击资格判定（C2 §2.4.1）、目标选择策略（C3 targetPriority/C8 AI）、行动经济（C2）、位移执行（F1/C1）、相位时序（F2）、托管决策（C10）、数值平衡定值（F3 表宿主）。
-> **对齐状态**：R2 玩法语义获 spike §6 性能回证（性能非约束），本文 §2.2 正式终裁；与 C2 v1.1.1/C3 v1.0.2/F1 v1.4.3/F2 v1.0.1 逐条对表零冲突（§9 逐项列）；程基岩技术交割 6 条全部消费（§9 契约表）。
+> **对齐状态**：R2 玩法语义获 spike §6 性能回证（性能非约束），本文 §2.2 正式终裁；与 C2 v1.1.1/C3 v1.0.2/F1 v1.4.3/F2 v1.0.1 逐条对表零冲突（§9 逐项列）；程基岩技术交割 6 条全部消费（§9 契约表）；C8 v1.0 走查一确认 OQ-4「格在谁脚下谁吃」口径在其逐格 expectedMods 评分消费面自洽（§9 三态清单转派销账）。
 
 ---
 
@@ -418,7 +418,7 @@ interface ResolutionQuery {
 | OQ-1 | `ladderHp`/`fallDamage`/`dropDamage`/`crossbow.damage` 等伤害基准数值定值（入口语义已全部闭合，纯数值） | C2/C3/平衡轮 | 灰盒可玩性轮（§8.4 统一校准） |
 | OQ-2 | 骑射手远程射击模型（射程键/是否吃高度修正/是否可打梯上单位） | C5/C8 | 本 GDD 未裁（概念稿「远程骚扰」未细化）——随 C8 GDD（序列 #6）或本文 v1.1 增补 |
 | OQ-3 | ~~`facility_volley` 事件名与齐射锚点时点~~ **已关闭（C4 v1.0 终裁，C5 v1.1 销账）**：锚点=`combat_phase_started` 处理期内、C① 重置与序快照前的同步结算段；C3 OQ-3「攻方行动段前」字面满足，备选「速度序先动」否决（跨系统耦合不值）；C4.4 与 C5.7 结算序同源零冲突，不触发结构回填 | ~~C4~~ 已归档 | — |
-| OQ-4 | `horseArcher` 与走廊目标的命中优先交互（骑射能否被垛口掩体减免——掩体只对墙顶线内目标成立？） | C5/平衡轮 | 灰盒轮（本文 MVP 口径：掩体=PARAPET 格标签，格在谁脚下谁吃，跨层不追溯） |
+| OQ-4 | `horseArcher` 与走廊目标的命中优先交互（骑射能否被垛口掩体减免——掩体只对墙顶线内目标成立？） | C5/平衡轮 | ✅ 已销账（2026-09-21，C8 §9.3 消费面核验）：「格在谁脚下谁吃」在 C8 逐格 expectedMods 评分消费面自洽，无跨层追溯歧义 |
 
 ---
 
@@ -428,3 +428,4 @@ interface ResolutionQuery {
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-005 序列 #5b）：结算总流程单事务化；**R2 穿透弹道终裁=俯射走廊**（网格语义定版，真射线列不做，spike §6 性能回证）；**礌石五步固定序（先位移后伤害）**；修正合成四源+heightDiff 符号锚定；梯上受击面五场景收口（F1 OQ-2 销账）；死亡连锁深度 1；承接转派 9 项三态清单（5 销/2 半销/2 转派确认）；技术交割 6 条消费对账；X 对拍确定性纪律（种子游标夹逼） |
 | v1.1-draft | 2026-09-21 | **C4 落盘联动回填（与 C4 §9.3 案一致）**：①§6.2 齐射锚点行 ⚠→✅（锚点终裁引 C4 v1.0：combat_phase_started 处理期内、C① 前的同步结算段；C4.4/C5.7 结算序同源零冲突；CROSSBOW_VOLLEY/facility_volley 命名辨析收录）；②§10 OQ-3 销账（C3 OQ-3 随 C4 关闭）；上游契约面零冲突，无结构改动 |
+| v1.1.1-draft | 2026-09-21 | **C8 走查一销账（design-strategist-2 代执行，主理人授权）**：§10 OQ-4 行补销账注记——「格在谁脚下谁吃」口径经 C8 §9.3 逐格 expectedMods 评分消费面核验自洽、无跨层追溯歧义；对齐状态行加 C8 v1.0 消费确认；OQ-4 转派销账闭环 |

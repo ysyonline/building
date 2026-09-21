@@ -1,6 +1,6 @@
 # C4 器械运作相位系统 · GDD
 
-> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5a
+> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5a
 > **产出**：文策渊（design-strategist-2）
 > **上游依据**：`design/gdd/systems/F2-phase-scheduler.md` v1.0.1（七态 FSM、§2.2 C 相位结算序、§3.3 事件表、E5 序内死亡跳槽、E10 伤害仅 C 相位、OQ-3「设施不占单位槽」临时口径）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.2（§2.1 锚点需求声明、§2.4 对 C4 四项需求、§2.5 不占槽口径确认、§3.1 Facility 实体、E13 推导式计数、§9 契约 1）｜ `design/gdd/systems/C2-units.md` v1.1.1（§3.6 isAlive/unitAt 存活原语）｜ `design/gdd/systems/C5-combat-resolution.md` v1.0（§6.2 strike 结算入口 `attacker: UnitId|FacilityId`、CROSSBOW_VOLLEY 请求类型、多来源序=facilityId 字典序）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.2（turn 镜像记账）
 > **范围红线**：本文只裁 C4——C 相位内器械指令窗口的**时序定义**（齐射锚点）、装填/架设的**轮计数权威与推导式**、中断收敛规则、`facility_volley` 事件契约、F2 OQ-3 口径复核。**不写**：伤害/命中数值（C5）、设施弹道与投放判定本体（C3）、自动索敌/投放托管策略（C10）、行动槽速度序（F2）、A 相位建造部署（C7）、Alpha 投石机子相位机制（§2.6 只立占位节）。
@@ -254,7 +254,7 @@ interface VolleyResult {
 | C5 结算 | §9.3 ⚠ 行回填（锚点时点+事件名定稿） | v1.0（回填案随本文交付） |
 | P1/P3/P4 | §6.1 全部语义（演出锚点/进度/预瞄徽标/哑火指示） | — |
 | C10 托管 | volley 结果评估缓存；窗口无注入点确认 | 序列 #8 |
-| C8 匈奴 AI | 敌床弩装填节拍情报（「趁装填冲梯」决策面，经事件流只读，零新接口） | 序列 #6 |
+| C8 匈奴 AI | C8 消费床弩静态射界（C3 firePreview）做威胁评分；facility_volley 装填节拍**不进 MVP 评分路径**（防 AI 全知破解装填空窗，裁定依据 C8 §9.4），留 Alpha 难度档扩展位 | 序列 #6 |
 | F5 存档 | `lastFiredTurn`/`createdTurn` 序列化（寄宿 C3 实体）；「剩余轮数」禁令 | — |
 | X5 模拟器 | volley 事件配对性 + 窗口时序断言（BE-1） | Alpha |
 
@@ -330,3 +330,4 @@ interface VolleyResult {
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版：单一时钟源承诺（K1-K3 主理人已批）/齐射锚点终裁「攻方行动段前」精确化为 combat_phase_started 处理期内（C3 OQ-3 关闭，销账案随文）/`facility_volley` 事件契约（N2 采纳）/F2 OQ-3 复核转正式（销账案随文）/装填架设推导式（禁递减计数器+禁时钟回拨双禁令）/预瞄锁定语义成文（E7）/C4-Alpha 占位节/对 C3 §6.2·C5 §6.2 两处回填案随文交付；文策渊确认函回执在途（header 补录位挂账，授权依据=主理人批件「按预览裁定成文」+C5 协调口） |
 | v1.0.1-draft | 2026-09-21 | 异议窗口闭环（design-strategist 两函确认放行，OQ-1 销账）：header 补录回执记录（两函：三点口径详述函+「确认无异议」放行函）；上游引用升 C5 v1.0→v1.1（其 v1.1 已含本文 §9.3 回填案落盘，署名人自执行）；§9.3 回填案关闭（C5 侧已由其本人交付）；§9.4 补录位转闭环记录。零实质裁定变更 |
+| v1.0.2-draft | 2026-09-21 | **§7.2 C8 消费面契约行收窄（走查二终裁，主理人批准）**：由「敌床弩装填节拍情报（趁装填冲梯）」收窄为「C8 消费床弩静态射界（C3 firePreview）做威胁评分；facility_volley 装填节拍不进 MVP 评分路径（防 AI 全知破解装填空窗，裁定依据 C8 §9.4），留 Alpha 难度档扩展位」；与 C8 v1.0 §9.4 裁定对齐 |
