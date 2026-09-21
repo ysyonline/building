@@ -1,6 +1,6 @@
 # F1 立体地形与网格系统 · GDD
 
-> **状态**：v1.3-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #1
+> **状态**：v1.3.2-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #1
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/game-concept-planA-turnbased.md`（决策①直接立体战棋）｜ `design/systems-breakdown.md` §5（分层 2D 网格 MVS）＋ §5.4（残余风险表）
 > **范围红线**：本文只裁 F1——格子模型/占位容量/连接器图论/关卡数据结构/对外接口契约。**不写** C1 寻路算法选型（序列 #2）、不写任何渲染实现（P1）、不写器械结算（C5/C4）。
@@ -329,7 +329,7 @@ interface TerrainQuery {
 
 ### 4.6 不变量（全部可单测，验收判据直接引用）
 
-- INV1：格容量恒不超——`∀cell: |occupantIds| + (facility?1:0) ≤ cap(cell)`（设施占位独立于单位容量的校验合流点见 §3.6）。
+- INV1：格容量恒不超——`∀cell: |occupantIds| ≤ cap(cell)`（**两套账**：设施占位 `facilityId` 不计入单位容量预算，设施约束=「一格恒至多一设施」由 registerFacility 独立校验，见 §3.6；v1.3.2 修正：旧式 `|occupantIds| + (facility?1:0) ≤ cap(cell)` 与 §2.5.3「设施不消耗单位槽」矛盾，会把合法的「马道 1 床弩+2 戍卒」误判超容）。
 - INV2：连接器 occupancy ≤ 1；`ON_CONNECTOR` 单位逻辑位置 = `c.from`。
 - INV3：容器内被引用的每个 CellId/UnitId/ConnectorId 均存在且唯一。
 - INV4：跨格移动原子性——不存在「离开 A 未进 B」中间态。
@@ -604,3 +604,4 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | v1.2-draft | 2026-09-21 | 二轮对齐：E11 坡道通行权补全（攻方限步兵+烽燧梯守方专属+三级视觉码引用备忘 v1.1）、增补坡头格战术热点（decal 提示优先级，C7/P3 输入项）；与 systems-breakdown §6.4/§6.5 完全对齐 |
 | v1.3-draft | 2026-09-21 | accessPolicy 字段落入契约：Connector 增至 9 字段（守方专属烽燧梯的数据前提）；§3.5 枚举清单同步；V5 补烽燧梯 h0→h2 例外、V9 补 accessPolicy 校验、V11 改「攻方可抵达范围」修复与守方专属梯的可达性矛盾；§9.1 JSON 补烽燧连接器与 DEFENDER_ONLY 示例 |
 | v1.3.1-draft | 2026-09-21 | 主理人收敛校对：TL;DR 行 E/H 补 accessPolicy 语义与 V11 新口径；§2.4.2 增补 accessPolicy 消费契约（C1/C8 邻接过滤规则）；V11 表行同步「ACTIVE∧BOTH 边图」；并发编辑冲突全部收敛，双实例口径一致 |
+| v1.3.2-draft | 2026-09-21 | C3 交叉互审修复（C2 审 C3 时发现反向 bug）：INV1 移除 `(facility?1:0)` 容量计入——旧式与 §2.5.3「设施不消耗单位槽」自相矛盾，会拒绝合法的「马道 1 床弩+2 戍卒」场景；设施约束收敛为「一格恒至多一设施」（registerFacility 独立校验，C3-E12 同口径） |
