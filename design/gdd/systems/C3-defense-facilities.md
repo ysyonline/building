@@ -1,6 +1,6 @@
 # C3 防御设施系统 · GDD
 
-> **状态**：v1.0.1-draft（2026-09-21）｜ GW-P2-002 批次 ｜ GDD 撰写序列 #4（与 C2 并行）
+> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-002 批次 ｜ GDD 撰写序列 #4（与 C2 并行）
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.3.3（facilityId 独占占位 §2.5.3、destroyConnector §2.4.4、E5 残骸链、E7 设施被毁释放、墙体结构查询 ⚠ 行）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0（C 相位行动槽、OQ-3 临时口径「设施不占单位槽」、E10 伤害仅发生于 C 相位）｜ 概念稿 §5/§6（床弩直射穿透一列、滚木礌石沿墙砸梯一次性）｜ `design/systems-breakdown.md` §5.4 R2
 > **范围红线**：本文只裁 C3——MVP 两类设施（床弩/滚木礌石）的通用模型、部署占位、运作状态机、弹道/投放判定、耐久与修理接口。**不写**器械相位的通用时钟模型（C4，序列 #5，本文只声明消费契约）、伤害数值与命中公式基准（C5/F3）、建造校验与经济（C7/C6）、托管自动投放策略（C10）、戍卒（C2——见 §1.2 分类学裁定）。
@@ -32,7 +32,7 @@ C3 是守军**静态火力与一次性器械**的宿主：定义设施的通用�
 | 滚木礌石 | **C3 设施** | 一次性投放物，独占格（弹药库语义） |
 | 戍卒小队 | **C2 单位** | 可移动、可阵亡、占单位容量账（F1 §2.5），本文不涉 |
 
-> F1 §2.5.3 括注「设施（床弩/礌石/戍卒）」沿用概念稿计数口径，指「部署期购买物全部独占格」；结构上戍卒归 C2。GW-P2-003 一致性评审时统一措辞为「部署物（deployables）」消除歧义（已列 §10 OQ-5）。
+> F1 §2.5.3 括注沿用概念稿计数口径，指「部署期购买物全部独占格」；结构上戍卒归 C2。**GW-P2-003 已统一（OQ-5 关闭）**：措辞定为「部署物（deployables）」＝部署期购买/布设物总称 ⊃ 设施〔C3：床弩/礌石〕＋单位〔C2：戍卒小队〕；F1 §2.5.3 与拆解文档活性引用已按此统一，本节标题与表体作为历史裁定记录豁免。
 
 ### 1.3 设计目标与支柱挂钩
 
@@ -205,7 +205,7 @@ interface FacilityCommand {                                 // 仅 C 相位窗�
 - `C3.2 ｜ 弹道目标集：T = {u | pos(u) ∈ Line ∧ faction(u) = 攻} ｜ ON_CONNECTOR 单位取 pos = c.from（F1 §2.4.4）｜ 消费方：C3/C5`
 - `C3.3 ｜ 逐目标命中：hit(u) 经 C5 结算入口，修正含 heightDiff(pos(u), f)（俯射优势为正）｜ 数值全归 C5/F3`
 - `C3.4 ｜ 射击资格：canFire ⇔ state = READY ∧ |T(dir)| > 0；发射后 state → RELOADING（reloadTurns 轮，F3）`
-- `C3.5 ｜ 投放资格：canDrop ⇔ stock.state = ARMED ∧ ladder.status = ACTIVE ∧ ladder.connKind = LADDER ∧ dist(ladder.to, stock.cellId) ≤ dropRadius ∧ crewAlive(ladder.to 邻域) ｜ crewAlive = 目标垛口格或相邻马道格 ∃存活守方单位`
+- `C3.5 ｜ 投放资格：canDrop ⇔ stock.state = ARMED ∧ ladder.status = ACTIVE ∧ ladder.connKind = LADDER ∧ dist(ladder.to, stock.cellId) ≤ dropRadius ∧ crewAlive(ladder.to 邻域) ｜ crewAlive = 目标垛口格或相邻马道格 ∃存活守方单位 ｜ v1.0.2 注记（003 门修订）：dist=曼哈顿距离（格数，|Δx|+|Δz|）∧ 轴向约束 |Δx| ≤ dropRadius——z 向邻位合法、纯 z 向偏移（跨轴）不在投放走廊内；初值 dropRadius=1 不变（F3 宿主）`
 - `C3.6 ｜ 毁梯链：drop → {stock.state = SPENT} → F1.destroyConnector(ladder) → E2 坠落位移 → C5.砸落伤害(dropDamage, 梯上单位)`
 - `C3.7 ｜ 耐久判定：destroyed ⇔ currentHp ≤ 0 → F1 E7 释放链 ｜ 修理：hp′ = min(max, hp + Δ)，Δ > 0 ∧ state ≠ DESTROYED`
 - `C3.8 ｜ 优先序：targetOrder = sort(T, targetPriority 序) 取首 ｜ 序归 F3，语义=克制表攻击序`
@@ -251,7 +251,7 @@ interface FacilityCommand {                                 // 仅 C 相位窗�
 | 床弩射界预览 | `firePreview` | 弹道走廊描红（朱砂 @28% 斜纹语义复用，视觉备忘 §1.3）；穿透目标逐个高亮 |
 | 装填指示 | `state` | RELOADING 态环形进度 + 「下轮可射」；CONSTRUCTING 显「架设中」 |
 | 锁定操作 | `lockTarget` | 点选方向/单位即锁定，锁定标记（朱砂双线描边语义复用） |
-| 礌石可用梯标示 | `canDrop` 逐梯 | 可砸梯冷青角标脉冲（备忘 §3 角标语义）；不可砸显原因（无可用 AP 人手/超距/已毁）；hover 显示将支付 AP 的戍卒 |
+| 礌石可用梯标示 | `canDrop` 逐梯 | 可砸梯冷青角标脉冲（备忘 §3 角标语义）；不可砸显原因（无人手/超距/已毁）；hover 显示人力来源戍卒（v1.0.2 修正：人力约束=存活校验非 AP 支付，与 v1.0.1 终裁口径一致） |
 | 耐久条 | `currentHp` | 设施血条（受损态变朱砂警示） |
 | 摧毁演出锚点 | `facility_destroyed` 事件 | P1 消费；残骸至回合末清除（与梯残骸同节奏） |
 
@@ -345,7 +345,7 @@ interface FacilityCommand {                                 // 仅 C 相位窗�
 | OQ-2 | `dropRadius` 初值（±1 工作假设）与 crewAlive 邻域半径 | C5/平衡期 | 灰盒可玩性轮（PL-2） |
 | OQ-3 | 齐射锚点「攻方行动段前」vs「速度序中按先动」——前者简单确定，后者更战棋但复杂 | C4 | C4 GDD |
 | OQ-4 | A 相位预锁方向（提前瞄准）是否产品化 | C7/P3 | P3 GDD |
-| OQ-5 | 「部署物 deployables」统一措辞替换概念稿「3 设施」口径 | X1/GW-P2-003 | 一致性评审（任务 #3） |
+| OQ-5 | ~~「部署物 deployables」统一措辞~~ **已裁定（GW-P2-003，三层定版）**：部署物⊃{设施=C3 子集，单位=C2 子集}——落点 F1 §2.5.3/C3 §1.2 注/拆解文档括注；本文 §1.2 注记改「003 已统一」，历史裁定记录豁免 | 已关闭 | — |
 
 ---
 
@@ -355,3 +355,4 @@ interface FacilityCommand {                                 // 仅 C 相位窗�
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版：设施通用模型/床弩俯射走廊提案（R2）/礌石毁梯链与人力约束/对 C4·C5·C10 三方前置契约/分类学裁定（戍卒归 C2） |
 | v1.0.1-draft | 2026-09-21 | C2 交叉互审终裁对齐：①AP 语义分歧裁定——采纳 C2 v1.1.0「设施操作与单位 AP 经济完全解耦」（crewAlive 维持纯存活约束，不耗戍卒 AP；理由：与床弩锁定不耗 AP 对称、C3↔C2 保持只读耦合、隐式按字典序扣税损害玩家掌控；若灰盒发现「白嫖砸梯」过强，平衡杠杆走 F3 投放费用/半径，不动经济结构）；②crewAlive 存活原语挂账关闭（消费 C2 §2.4.2 isAlive/aliveDefendersIn）；③上游引用升 F1 v1.3.3；④R2 获 spike §6 回证（网格步进 0.28μs/发，性能无碍，语义终裁留 C5）；⑤勘误：R2 提案位置 §2.5→§2.2 |
+| v1.0.2-draft | 2026-09-21 | **GW-P2-003 门修订（主理人批准）**：①D-4 §6.1 UI 表 AP 笔误残留修正——「无可用 AP 人手」→「无人手」、hover「将支付 AP 的戍卒」→「人力来源戍卒」（与 v1.0.1 设施-AP 解耦终裁一致，笔误残留清理）；②D-5 C3.5 投放资格公式补距离度量注记（dist=曼哈顿 ∧ 轴向 |Δx| ≤ dropRadius，z 向邻位合法、跨轴不合法；初值 ±1 不变）；③§10 OQ-5 销账；④§1.2 表后注收口（部署物三层定版已裁，历史裁定记录豁免）；⑤header 升 v1.0.2 |

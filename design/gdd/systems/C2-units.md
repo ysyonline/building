@@ -1,8 +1,8 @@
 # C2 单位系统 · GDD
 
-> **状态**：v1.1.0-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
+> **状态**：v1.1.1-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
 > **产出**：文策渊（design-strategist-2）
-> **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.3（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.1（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
+> **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.4.2（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.4（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
 > **范围红线**：本文只裁 C2——兵种数据契约、属性容器、占用与生命状态、行动经济、MVP 督队光环的**可替换策略框架**。**不写**：移动执行（C1）、伤害/命中/克制的结算数值（C5）、匈奴决策（C8）、士气和连锁溃退（C11 Alpha）、设施（C3）。
 > **对齐状态**：spike 未落盘；本文不涉及实现选型，无 spike 挂点；与 F1/C1 的契约冲突按 §10 清单流转，不单方改对方契约。
 
@@ -398,7 +398,7 @@ interface UnitStatsQuery {
 ### 7.3 与并行 GDD 的协调记录
 
 - C1（design-strategist，v1.0.1）：其 §6.2 契约表「MP/许可/footprint ⚠ 待 C2 定接口签名」由本文 §3.6 关闭；其 OQ-1（冲车 footprint）由本文裁定 C 关闭（结论：C1 无需扩展，footprint 恒 NONE）；其 OQ-2（MP 基准/移动-行动经济）由本文 §2.4 关闭。**C1 文件本体不动**（结论对 C1 无结构性影响），记录于本文变更日志。
-| F2（design-strategist，v1.0 已落盘） | 相位时点 | **OQ-1 关闭**：C2 §2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），语义与原假设一致，零冲突 |
+- F2（design-strategist，v1.0 已落盘）：相位时点——**OQ-1 关闭**：C2 §2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），语义与原假设一致，零冲突。
 
 ---
 
@@ -474,3 +474,4 @@ interface UnitStatsQuery {
 | v1.0-draft | 2026-09-21 | 首版：五兵种契约/双资源行动经济（锁足裁定）/冲车不占格裁定（关闭 F1 OQ-3、C1 OQ-1/2）/督队 AuraStrategy 可替换框架（用户扩展性约束兑现）/UnitStatsQuery 关闭 C1 §6.2 ⚠ 行；F2 相位时点假设入 OQ-1 |
 | v1.0.1-draft | 2026-09-21 | F2 对齐回填（主理人验收后）：§2.1 事件名对齐 `combat_phase_started`（F2 §3.3 B→C 迁移事件），OQ-1 关闭；§3.6 UnitStatsQuery 增补 speed/actionDone/controlMode/setActionDone 四方法，关闭 F2 §6.2「⚠ 待 C2 定签名」与 F2 OQ-1；Unit 实体增补 controlMode 字段（F2 槽路由消费面） |
 | v1.1.0-draft | 2026-09-21 | C3 交叉互审对表（本人审 C3 的同步回填）：①§2.4 修正「滚木投放读戍卒 AP」笔误→设施操作与单位 AP 经济完全解耦（与 C3 §2.5 自由指令口径一致）；②新增 §2.4.1 攻击与目标——覆盖「攻击设施」分支（C3-E5 对表，target=FacilityId 资格判定在 C2、伤害入口 C5），并成文互认「光环只作用单位、设施不受光环」（互审重点②）；③新增 §2.4.2+§3.6 增补 isAlive/aliveDefendersIn/unitAt 三原语（C3 §3.4 挂账的存活查询签名，crewAlive 语义组装权留 C3）；④反向发现并已修复 F1 INV1 容量计入矛盾（F1 v1.3.2，设施不计入单位容量预算） |
+| v1.1.1-draft | 2026-09-21 | 003 门内自改（设计侧走查移交，主理人批准）：①D-2 header 上游依据版本升引 F1 v1.3→v1.4.2、C1 v1.0.1→v1.0.4（引用内容零冲突，纯版本号对齐）；②D-3 §7.3「F2（v1.0 已落盘）」顶格孤行窜表修复——原行无表头可挂致 markdown 断表，转同构列表项（与 C1 行格式一致） |
