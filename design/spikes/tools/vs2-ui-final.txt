@@ -1,0 +1,19 @@
+boot: {"phase":"INIT","THREE":"object","err":""}
+cam/ghost toggled, buttons.on=["cam-2","btn-ghost"]
+---- 判胜路 ----
+phase=END_WIN logTail="（ladder_infantry）行动…[占位]\n[21:54] 　slot#6 A_12（ladder_infantry）行动…[占位]\n[21:54] 　slot#7 A_13（ladder_infantry）行动…[占位]\n[21:54] C③ 全部槽耗尽 ∨ 中断 → C→D（处理 7 · 跳槽 0 · 正常 exhausted)\n[21:54] 　C④ 演示清场：守方占位全歼攻方 4 个单位（VS-3 接真实战斗）\n[21:54] banner：battle_won（WAVES_CLEARED）\n[21:54] D④ 判胜：波次耗尽 ∧ 清场 → END_WIN\n[21:54] ★ 演示局结果：END_WIN（全链路走通）"
+---- 判负路 ----
+loseDisabledAfterInit=true（INIT 态守门验证：true=正确禁用）
+phase=END_LOSE logTail="D_17（0.10ms）\n[21:54] 　slot#1 D_15（garrison_squad）行动…[占位]\n[21:54] 　slot#2 D_16（garrison_squad）行动…[占位]\n[21:54] 　slot#3 D_17（garrison_squad）行动…[占位]\n[21:54] C③ 全部槽耗尽 ∨ 中断 → C→D（处理 3 · 跳槽 0 · 正常 exhausted)\n[21:54] banner：battle_lost（BEACON_FALLEN）\n[21:54] D④ 判负：beaconHP≤0（帅帐陷落）→ END_LOSE\n[21:54] ★ 演示局结果：END_LOSE（判负优先于同回合清场）"
+---- 相位压测×100 ----
+logTail="外迁移硬拒绝）\n[21:57] ✗ illegal_transition：END_LOSE→B（表外迁移硬拒绝）\n[21:57] ✗ illegal_transition：END_LOSE→END_WIN（表外迁移硬拒绝）\n[21:57] ✗ illegal_transition：END_LOSE→INIT（表外迁移硬拒绝）\n[21:57] ▶ 相位压测 100 局：胜 50 / 负 50 / 异常终态 0 · 耗时 2614.7ms（26.15ms/局）\n[21:57] 　注入式非法迁移 6/6 全部拒绝并发出 illegal_transition ✓\n[21:57] 　F4 压测前游标 0（压测用独立局消耗，不污染演示局序列）——当前局游标 0\n[21:57] 战局重置：种子 vs-l1-seed-01 展开字 0x138c8ae8 · 守方 3 戍卒 + 床弩占位 · F2=INIT"
+---- F4 种子冒烟 ----
+logTail=" 　注入式非法迁移 6/6 全部拒绝并发出 illegal_transition ✓\n[21:57] 　F4 压测前游标 0（压测用独立局消耗，不污染演示局序列）——当前局游标 0\n[21:57] 战局重置：种子 vs-l1-seed-01 展开字 0x138c8ae8 · 守方 3 戍卒 + 床弩占位 · F2=INIT\n[21:57] ✓ F4 冒烟：同种子（vs-l1-seed-01）两次初始化 64 值逐字节一致 ✓\n[21:57] 　换种子序列不同 ✓ · 展开字 0xaf083606 / 0x138c8ae8\n[21:57] 　cursor 单调计数=0（消费即+1；HIT_ROLL 消费入口 VS-3 接线 C5.2）"
+---- L1&A* / 坠落链 ----
+logTail="7] L1 骨架：W=12 · 63 格（GROUND×36 · PARAPET×7 · SLOPE×1 · WALL×10 · RAMPART_WALK×7 · GATE×1 · BEACON_FLOOR×1）· 连接器 3（坡道/门洞/烽燧梯 DEFENDER_ONLY）\n[21:57] 　A*：地面→烽燧 14 格 0.300ms · 马道→烽燧 11 格 0.100ms · 地面→门洞 8 格 0.100ms\n[21:57] 　压测 2000 次：平均 0.0242ms · 失败 0 · 启发层差权重 2（=climb，≤最小跨层边成本约束 ✓）"
+fall logTail="压测 2000 次：平均 0.0242ms · 失败 0 · 启发层差权重 2（=climb，≤最小跨层边成本约束 ✓）\n[21:57] boardConnector(A_1021) → OK（occupancy 登记，逻辑位置保持 from 格——INV2）\n[21:57] destroyConnector(ld_demo) → 断边+1 单位坠落落位：落至 8_0_0（E2：from 空→邻接顺延；伤害过骰 VS-3） · 落位失败不回滚 destroy ✓\n[21:57] unboardConnector 复核 → 拒绝（已 DESTROYED）✓"
+---- totals ----
+page exceptions: 0
+console errors: 0
+== UI CHECK: ALL PASS ==
+UIEXIT=0

@@ -1,0 +1,35 @@
+== VS-2 切片底座 · 逻辑层无头测试 ==
+
+[F2 相位 FSM]
+  PASS  F2.1 七态迁移表完整  —— INIT→A→B→C→D→(A|END_WIN|END_LOSE)
+  PASS  F2.2 表外迁移拒绝（非法 32 连发全拒）  —— 32/32 拒绝并发 illegal_transition
+  PASS  F2.3 速度序三键（speed 降序 / 等速守方优先 / unitId 字典序）  —— 5→A_fast(5) → D_mid,D_mid2(守先) → A_mid2 → A_slow(1)
+  PASS  F2.4 顺序快照冻结（中途死亡不重排、跳槽事件成对）  —— 死亡单位跳槽但 open/close 成对 {skipped:true}（F2-E5）
+  PASS  F2.5 D④ 判负优先于同回合清场（E11）  —— 烽燧破+清场同回合 → 判负
+  PASS  F2.6 D④ 判胜需「波次耗尽 ∧ 清场」双分量（只构造其一不判胜）  —— 耗尽∧清场才判胜（F2.5 双分量不可拆）
+  PASS  F2.7 turn 只在 D→A 时 +1  —— 1→(A/B/C/D 全程)1→(D→A)2（F2.6）
+  PASS  F2.8 beaconDestroyed 中断链：剩余槽不再开启  —— e1 槽内破坏 → e2/e3 槽不开启（F2-BE-3）
+
+[F1 L1 关卡数据]
+  PASS  F1.1 层主序 + CellId 含 h  —— layers[h][x][z] · (5,0,h0)=GROUND 与 (5,0,h1)=PARAPET 同列共存（坑 1 回归）
+  PASS  F1.2 L1 结构参数（W=12 / 烽燧唯一 h=2 / 门洞 1 / 坡道 1）  —— V1/V4 烽燧唯一 + W=12（F1 §10.1 L1 列）
+  PASS  F1.3 连接器 9 字段齐备 + 烽燧梯 DEFENDER_ONLY  —— 9 字段（F1 §2.4.2）· V9 守方专属
+  PASS  F1.4 容量表分类型（垛口1/马道2/地面4/门洞1/烽燧顶1/坡道1/墙0，堆叠上限4）  —— F1 §2.5.2 全表（F3 grid-capacity 宿主键）
+  PASS  F1.5 容量判定：满格拒绝 + 堆叠上限护栏  —— GROUND 4/4 后拒绝（F1.8 + F1.12）
+  PASS  F1.6 V11 攻方可达（ACTIVE∧BOTH 边图上 地面→烽燧 存在路径）  —— 攻方 ACTIVE∧BOTH 通路成立
+  PASS  F1.7 守方内部梯可达烽燧  —— 马道→烽燧（DEFENDER_ONLY 边对守方有效）
+  PASS  F1.8 board/unboard 骨架 + E2 坠落链（destroy 原子清 occupancy，落位不悬空）  —— board→INV2 并存登记 → destroy→清 occupancy+落位（from 空→留原格）
+  PASS  F1.9 unboard 主动弃梯：from 满则拒绝（C1-E4 终裁 A 案）  —— from 格满 → 拒绝弃梯、留梯保持暴露（INV1 无豁免）
+  PASS  F1.10 启发权重 ≤ climb（可采纳性联动约束在册）  —— weight=2 ≤ climb=2（C1.5 硬约束）
+
+[F4 确定性随机]
+  PASS  F4.1 同种子两次初始化序列逐字节一致  —— "vs-l1-seed-01" ×128 值全等
+  PASS  F4.2 种子展开=FNV-1a-32（公开规范测试向量）  —— FNV-1a("a")=0xe40c292c / FNV-1a("foobar")=0xbf9cf968（F4.2 展开原语正确）
+  PASS  F4.3 换种子序列不同 + 游标单调 +1  —— 不同种子→不同序列；游标=消费数
+  PASS  F4.4 rand 值域 [0,1)  —— 10⁴ 采样无越界（state/2³² 结构保证）
+  PASS  F4.5 中文种子恒成功（零失败模式）  —— F4-E7 任意 UTF-8 串
+
+[全链路空转（无渲染）]
+  PASS  E2E.1 判胜路径 INIT→…→END_WIN 零 illegal_transition  —— 3 波全歼 → 波次耗尽∧清场 → END_WIN（全程零表外迁移）
+
+== 结果：24 PASS / 0 FAIL ==
