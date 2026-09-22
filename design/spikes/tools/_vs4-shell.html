@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>烽燧·长城攻防 —— GW-VS 灰盒可玩性轮 · VS-4 建设经济+器械+D结算</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0f16;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #f7ead6; }
+  #app { position: absolute; inset: 0; }
+  #panel { position: fixed; right: 12px; top: 12px; width: 384px; max-height: calc(100% - 24px);
+    display: flex; flex-direction: column; gap: 8px; z-index: 10;
+    background: rgba(13, 15, 22, 0.86); border: 1px solid #2a2f3e; border-radius: 10px;
+    padding: 10px; }
+  .sect { font-size: 11px; letter-spacing: 2px; color: #8a93a8; border-bottom: 1px solid #232838;
+    padding-bottom: 3px; margin-top: 2px; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { flex: 1 1 auto; background: #1a2030; color: #f7ead6; border: 1px solid #39415a;
+    border-radius: 6px; padding: 6px 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled) { background: #242c42; border-color: #8fb8d8; }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.on { background: #2c3a55; border-color: #8fb8d8; }
+  button.warn { border-color: #b3382c; }
+  button.warn:hover:not(:disabled) { background: #3a2020; border-color: #e05545; }
+  #hud { display: flex; align-items: center; gap: 10px; background: #131826;
+    border: 1px solid #39415a; border-radius: 6px; padding: 7px 10px; }
+  #hud-phase { font-size: 15px; font-weight: 700; color: #ffd9a0; }
+  #hud-turn { font-size: 12px; color: #b8c2d8; }
+  #hud-slot, #hud-cursor { font-size: 11px; color: #8a93a8; }
+  #log { flex: 1 1 auto; min-height: 180px; overflow-y: auto; background: #0b0e15;
+    border: 1px solid #232838; border-radius: 6px; padding: 6px 8px;
+    font-size: 11.5px; line-height: 1.55; font-family: Consolas, monospace; }
+  #log .t { color: #5a6478; }
+  #log .ok { color: #a8d8a0; }
+  #log .bad { color: #e08a7a; }
+  #err { position: fixed; left: 12px; bottom: 12px; max-width: 560px; z-index: 20;
+    background: #2a1414; border: 1px solid #b3382c; border-radius: 8px; padding: 10px 14px;
+    color: #ffd9d0; font-size: 12px; white-space: pre-wrap; }
+  #title { font-size: 12px; color: #c8bfa8; }
+  #title b { color: #ffd9a0; }
+  .hint { font-size: 10.5px; color: #6a7488; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="panel">
+  <div id="title"><b>VS-4 建设经济+器械+D结算</b> · L1 教学骨架 · C6 粮饷 / C7 建设 / C4 齐射 / D 相位收口</div>
+  <div id="hud">
+    <span id="hud-phase">—</span>
+    <span id="hud-turn">—</span>
+    <span id="hud-slot">—</span>
+    <span id="hud-cursor">—</span>
+  </div>
+  <div class="sect">相位推进（演示）</div>
+  <div class="row">
+    <button id="btn-init">重置战局</button>
+    <button id="btn-endbuild">结束建设</button>
+    <button id="btn-next">演示推进 ▶</button>
+  </div>
+  <div class="row">
+    <button id="btn-ph-A">→A</button>
+    <button id="btn-ph-B">→B</button>
+    <button id="btn-ph-C">→C</button>
+    <button id="btn-ph-D">→D</button>
+  </div>
+  <div class="row">
+    <button id="btn-autoplay">演示一整局（判胜）</button>
+    <button id="btn-lose" class="warn">跳到判负</button>
+  </div>
+  <div class="sect">诊断（VS-2 验收）</div>
+  <div class="row">
+    <button id="btn-stress">相位压测×30</button>
+    <button id="btn-rng">F4 种子冒烟</button>
+  </div>
+  <div class="row">
+    <button id="btn-perf">L1 关卡 + A*</button>
+    <button id="btn-fall">坠落链冒烟</button>
+  </div>
+  <div class="sect">VS-3 验收</div>
+  <div class="row">
+    <button id="btn-metrics">命中率 / BE-2 / AI 耗时</button>
+    <button id="btn-determinism">F4 重放逐字节一致</button>
+  </div>
+  <div class="sect">VS-4 验收</div>
+  <div class="row">
+    <button id="btn-economy">经济断言套件</button>
+    <button id="btn-c7orders">C7 五闸/六指令</button>
+  </div>
+  <div class="row">
+    <button id="btn-c4rhythm">C4 装填节拍/礌石</button>
+    <button id="btn-v4all">VS-4 全量自检</button>
+  </div>
+  <div class="sect">视角（切层渲染）</div>
+  <div class="row">
+    <button id="cam-0">地面档</button>
+    <button id="cam-1">墙顶档</button>
+    <button id="cam-2">烽燧档</button>
+    <button id="btn-ghost" class="on">上层半透明：开</button>
+  </div>
+  <div class="sect">事件日志</div>
+  <div id="log"></div>
+  <div class="hint">VS-4 实装 A 相位建设经济（C6 quote/charge + C7 五闸六指令）+ 器械（C4 facility_volley/礌石自由指令）+ D 相位结算（D② 屯田→补给→缴获 / D③ 援军）；VS-3 战斗核心保留。数值全部消费 VS-1 vs-playtest-sheet v1.0.1 §5.x，代码零兵种名/零数值硬编码。</div>
+</div>
+<div id="err" hidden></div>
+<!--APP_BLOCK-->
+</body>
+</html>

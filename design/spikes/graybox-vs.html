@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>烽燧·长城攻防 —— GW-VS 灰盒可玩性轮 · VS-3 战斗核心</title>
+<title>烽燧·长城攻防 —— GW-VS 灰盒可玩性轮 · VS-4 建设经济+器械+D结算</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0f16;
@@ -45,7 +45,7 @@
 <body>
 <div id="app"></div>
 <div id="panel">
-  <div id="title"><b>VS-3 战斗核心</b> · L1 教学骨架 · C1 移动 / C5 结算 / C10 托管 / C8 AI</div>
+  <div id="title"><b>VS-4 建设经济+器械+D结算</b> · L1 教学骨架 · C6 粮饷 / C7 建设 / C4 齐射 / D 相位收口</div>
   <div id="hud">
     <span id="hud-phase">—</span>
     <span id="hud-turn">—</span>
@@ -82,6 +82,15 @@
     <button id="btn-metrics">命中率 / BE-2 / AI 耗时</button>
     <button id="btn-determinism">F4 重放逐字节一致</button>
   </div>
+  <div class="sect">VS-4 验收</div>
+  <div class="row">
+    <button id="btn-economy">经济断言套件</button>
+    <button id="btn-c7orders">C7 五闸/六指令</button>
+  </div>
+  <div class="row">
+    <button id="btn-c4rhythm">C4 装填节拍/礌石</button>
+    <button id="btn-v4all">VS-4 全量自检</button>
+  </div>
   <div class="sect">视角（切层渲染）</div>
   <div class="row">
     <button id="cam-0">地面档</button>
@@ -91,27 +100,32 @@
   </div>
   <div class="sect">事件日志</div>
   <div id="log"></div>
-  <div class="hint">VS-3 实装 C 相位战斗核心（移动/结算/托管/AI）；数值全部消费 VS-1 vs-playtest-sheet v1.0.1 §5.x，代码零兵种名/零数值硬编码。经济/器械/D 结算归 VS-4。</div>
+  <div class="hint">VS-4 实装 A 相位建设经济（C6 quote/charge + C7 五闸六指令）+ 器械（C4 facility_volley/礌石自由指令）+ D 相位结算（D② 屯田→补给→缴获 / D③ 援军）；VS-3 战斗核心保留。数值全部消费 VS-1 vs-playtest-sheet v1.0.1 §5.x，代码零兵种名/零数值硬编码。</div>
 </div>
 <div id="err" hidden></div>
 <script>
 /* ============================================================
- * 烽燧·长城攻防 —— GW-VS 灰盒可玩性轮 · VS-3 C 相位战斗核心（自包含，无外部资源）
+ * 烽燧·长城攻防 —— GW-VS 灰盒可玩性轮 · VS-4 A 相位建设经济 + 器械 + D 相位结算（自包含，无外部资源）
  * 结构分区：本块 = [F2 相位 FSM] + [F1 地形/关卡] + [F4 确定性随机] + [F3 表宿主]
  *                  + [WORLD 世界态] + [C1 移动] + [C5 攻击结算] + [C10 托管] + [C8 匈奴 AI]
+ *                  + [C6 粮饷经济] + [C7 建设与部署] + [C4 器械节拍]
  *                  + [RENDER 渲染/UI + 演示驱动]
  *           three.js r158 UMD 在下一 script 块裸内联（禁 IIFE 包装，见 F1 报告坑 3）；
  *           文件尾 script 块调用 boot()。
- * VS-3 范围（在 VS-2 底座上实装 C 相位战斗核心）：
- *   ① C1 移动：MP×AP 消费、攻击后锁足（mpZeroOnAttack）、攀爬原子 2MP、board/unboard 真实实现、
- *             E2 坠落链（fallDamage 走 C5 统一伤害入口，零独立 RNG）
- *   ② C5 攻击结算：命中判定（hitBase+高度+掩体/暴露）、走廊目标集（同层轴向、近→远、逐目标独立过骰）、
- *             近战（vsFacility 系数 + squadHpPowerCurve 输出侧）、骑射（damage/range/isHitMod）、礌石五步串行
- *   ③ C10 托管：UNIT 级 AUTO/MANUAL 路由、defense-scripts 权重评分、ScoringHook 占位返 0、slotDecisionMs
- *   ④ C8 匈奴 AI：generatePlans 纯函数（零 RNG）、intentTag MAIN_ASSAULT/FEINT（值照表）、
- *             targetWeights/costWeights、COORDINATED 仅表加载占位（L1 禁出场）、planBudgetMs
- * 仍留后续批次（保留全部 [VS-4] / [VS-5] 锚点注释）：
- *   A 相位建设经济 + 器械 + D 相位结算（VS-4）；F3 数值全量注入 + 自动化冒烟（VS-5）
+ * VS-4 范围（在 VS-3 战斗核心上实装）：
+ *   ① C6 经济（GDD v1.0.3）：A 相位 quote/charge（INSUFFICIENT/ILLEGAL_WINDOW 双拒绝态，破产=禁止下单）；
+ *     缴获双段式（C 相位 killed 流水登记 append-only / D② 统一入账）；D② settleIncome 固定子序
+ *     farm→supply→loot + 幂等锚；d3Reinforce 时刻表数据源（免费，调度/顺延权威归 F2）；
+ *     BattleEndReport v1 终局一次性冻结。经济零 F4 消费（INV-C6-5 重放安全岛）。
+ *   ② C7 建设部署（GDD v1.0.2）：六指令（建造/部署/重置/修理/拆除/修墙）——五闸管线
+ *     窗口→寻址→世界→资金→落地 单事务（C7.1 下单即支付+立即落地）；修墙=W-1 未落地整体封闭
+ *     （WALL_REPAIR_UNAVAILABLE）；重置零费（C7.8）；修理夹取语义（C7.5）；拆除零退款。
+ *   ③ C4 器械节拍（GDD v1.0.2）：facility_volley（volleyId=`${turn}_V`，空载照发）；装填/架设=绝对回合戳
+ *     推导（K3 禁递减计数器/禁时钟回拨）；齐射锚点=phase_enter C 处理期内、C① 前（C4.1）；
+ *     礌石 dropStock 自由指令（C 相位任意时点，canDrop 四拒绝 + 人力约束，效果链走 C5 五步固定序）。
+ *   ④ D 相位收口：D① 清扫 → D② 经济入账 → D③ 援军到岗 → D④ 判定（先钱后人，F2 §2.2-D 序不变）。
+ * VS-3 已实装（保留）：C1 移动 / C5 结算（含礌石五步固定序）/ C10 托管 / C8 匈奴 AI。
+ * 仍留后续批次（保留全部 [VS-5] 锚点注释）：F3 数值全量注入 + 自动化冒烟 + 存档（VS-5）
  * ============================================================ */
 
 /* ---------- 0. 防御性错误层 ---------- */
@@ -271,25 +285,32 @@ var F2 = (function () {
       var clear = hooks.aliveEnemies() === 0;  // F1 snapshot 清场判定
       win = exhausted && clear;                // 双分量不可拆（F2 §2.5）
     }
-    if (lose) { st.phase = 'END_LOSE'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_lost', { reason: 'BEACON_FALLEN', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_LOSE', turn: st.turn }); }
-    else if (win) { st.phase = 'END_WIN'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_won', { reason: 'WAVES_CLEARED', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_WIN', turn: st.turn }); }
+    if (lose) {
+      if (hooks.finalize) hooks.finalize('LOSE', 'BEACON_FALLEN');   /* [VS-4] C6 finalizeReport（D② 经济已入账后冻结） */
+      st.phase = 'END_LOSE'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_lost', { reason: 'BEACON_FALLEN', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_LOSE', turn: st.turn });
+    }
+    else if (win) {
+      if (hooks.finalize) hooks.finalize('WIN', 'WAVES_CLEARED');
+      st.phase = 'END_WIN'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_won', { reason: 'WAVES_CLEARED', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_WIN', turn: st.turn });
+    }
     // D⑤ 波次游标簿记前移（C9 advanceCursor；镜像写 dbe.waveCursor）
     if (hooks.d5AdvanceCursor) st.dbe.waveCursor = hooks.d5AdvanceCursor(st.turn);
     // D⑥：turn++ 与 D→A 迁移由调用方在未终局时经 beginPhase('A') 完成（F2.6/裁定 F S1 锚点）
     return { lose: lose, win: win };
   }
 
-  /* 烽燧破坏中断链（F2-BE-3）：C 相位内 beacon_destroyed → 带旗标进 D。
-   * 伤害写入侧（C5，VS-3）只置旗标+发事件；本函数不重复校验 phase='C' 窗口以外的合法调用路径由压测守护（F2-E10）。 */
+/* 烽燧破坏中断链（F2-BE-3）：C 相位内 beacon_destroyed → 带旗标进 D。
+ * 伤害写入侧（C5，VS-3）只置旗标+发事件；本函数不重复校验 phase='C' 窗口以外的合法调用路径由压测守护（F2-E10）。 */
   function onBeaconDestroyed(byUnitId) {
     if (!st) return;
     if (st.flags.beaconDestroyed) return;
     st.flags.beaconDestroyed = true;
     bus.publish('beacon_destroyed', { byUnitId: byUnitId || null, atTurn: st.turn, phase: st.phase });
   }
+  function turnMirror() { return st ? st.turn : 0; }   /* [VS-4] F1 镜像一致性接口（turn 镜像契约；C4 推导消费同值回合戳） */
 
   return { TRANSITIONS: TRANSITIONS, PHASE_LABEL: PHASE_LABEL, bus: bus,
-           init: init, state: state, beginPhase: beginPhase,
+           init: init, state: state, beginPhase: beginPhase, turnMirror: turnMirror,
            runPhaseB: runPhaseB, snapshotActionOrder: snapshotActionOrder, runSlots: runSlots,
            runPhaseD: runPhaseD, onBeaconDestroyed: onBeaconDestroyed };
 })();
@@ -747,8 +768,9 @@ var TABLES = {
     ram_chariot:     { faction:'ATTACKER', baseHp:200, baseMp:2, baseAp:1, speed:2, layerAccess:[0],     canBoardLadder:false, attackCapable:true,  meleeReach:1, lootKey:'ramChariot', immuneToMeleeInteract:true }
   },
   facilities: {   /* facilities.json（结构权威 C3 §3.2；初值 VS-1 §5.2） */
-    bedCrossbow:  { hp:30, range:12, reloadTurns:1, deployKind:'RAMPART_WALK', rangedCorridor:true,
+    bedCrossbow:  { hp:30, range:12, reloadTurns:1, setupTurns:1, deployKind:'RAMPART_WALK', rangedCorridor:true,
                     targetPriority:['horse_archer','ladder_infantry','warlord_escort','ram_chariot'] },
+                    /* setupTurns=1：C4 GDD v1.0.2 §2.4/§3.4 新增键（架设轮数，建成当轮不可射；非 VS-1 键，GDD 结构定值） */
     rollingStock: { hp:20, dropRadius:1, deployKind:'RAMPART_WALK' }
   },
   weapons: {      /* weapons.json（C3+C5 共表，键路径规范形 F3 R-4；初值 VS-1 §5.3） */
@@ -762,11 +784,14 @@ var TABLES = {
     hitBase:0.75, heightModPerLevel:0.10, heightModPerLevelRanged:0.05,
     coverModParapet:-0.15, exposedModLadder:0.25, squadHpPowerCurve:'linear'
   },
-  economy: {      /* economy.json（结构权威 C6 §3.5；VS-1 §5.5 值，本批未消费——[VS-4]） */
+  economy: {      /* economy.json（结构权威 C6 §3.5；VS-1 §5.5 值，[VS-4] 起全量消费） */
     perLevel: { L1: { initialTreasury: 480 } },
     income: { farmBasePerTurn: 20, supplyBasePerTurn: 20 },
     loot: { perTemplate: { garrisonSquad: 0, ladderInfantry: 30, horseArcher: 25, ramChariot: 100, warlordEscort: 90 } },
-    cost: { build: { bedCrossbow:100, rollingStock:60 }, deploy: { garrisonSquad:50 }, repair: { perHp:1 }, wallRepair: { perHp:3 } }
+    cost: { build: { bedCrossbow:100, rollingStock:60 }, deploy: { garrisonSquad:50 }, repair: { perHp:1 }, wallRepair: { perHp:3 } },
+    /* 援军时刻表（C6 §3.5 reinforcementSchedule per-level 段）：VS-1 §5.5 无援军键 → MVP L1 空表（挂账 VS-7），
+     * 机制全量在位（ReinforceEntry 结构 C6 §3.2；顺延队列=F2 dbe.pendingReinforcements，条目零丢失 F2.7）。 */
+    reinforcementSchedule: []
   },
   aiScripts: {    /* ai-scripts.json（结构权威 C8 §3.2；初值 VS-1 §5.6） */
     targetWeights: { w_beacon:100, w_garrison:60, w_facility:40, w_path:40 },
@@ -815,7 +840,8 @@ var WAVES_L1 = [
 var WORLD = (function () {
   var T = TABLES;
   var units = {};                 // uid -> 单位逻辑记录
-  var facilities = {};            // fid -> {id, templateId, cellId, hp, maxHp, state, facing}
+  var facilities = {};            // fid -> {id, templateId, cellId, hp, maxHp, state, facing, createdTurn, lastFiredTurn}
+  var facilitySeqN = 0;           // 建造流水号（fid 生成：C7 落地闸分配，重放确定性=指令序唯一）
   var beaconState = { hp: T.beacon.durability, maxHp: T.beacon.durability };
   var waveState = { cursor:0, pendingSpawns:[], unitWaveMap:{}, unitIntents:{} };
   var seqN = 0;
@@ -864,7 +890,12 @@ var WORLD = (function () {
     var f = facilities[fid]; if (!f || f.state === 'DESTROYED') return { killed:false, dmg:0 };
     var real = Math.max(0, Math.round(dmg));
     f.hp = Math.max(0, f.hp - real);
-    if (f.hp <= 0) { f.state = 'DESTROYED'; F2.bus.publish('facility_destroyed', { facilityId:fid }); return { killed:true, dmg:real }; }
+    if (f.hp <= 0) { f.state = 'DESTROYED';
+      /* [VS-4] E7 释放链：DESTROYED 即释放 facilityId（格恢复纯格语义，同格单位不受影响不位移）；
+       * 实体记录保留至回合末（P1 演出），D① 扫疡退场。 */
+      var c = F1.getCell(f.cellId); if (c && c.facilityId === fid) c.facilityId = null;
+      var occ = F1.runtime().cellOccupancy[f.cellId]; if (occ && occ.facility === fid) occ.facility = null;
+      F2.bus.publish('facility_destroyed', { facilityId:fid }); return { killed:true, dmg:real }; }
     return { killed:false, dmg:real };
   }
   function damageBeacon(dmg, source) {         // F2.4 判负链的攻方写入侧
@@ -874,12 +905,31 @@ var WORLD = (function () {
     F2.bus.publish('beacon_damaged', { hp: beaconState.hp, dmg: real });
     return { killed: beaconState.hp <= 0, dmg: real };
   }
-  function addFacility(fid, templateId, cellId, facing) {
+  function addFacility(fid, templateId, cellId, facing, createdTurn) {
     var tpl = T.facilities[templateId]; if (!tpl) return null;
     var r = F1.registerFacility(fid, cellId); if (!r.ok) return null;
-    facilities[fid] = { id:fid, templateId:templateId, cellId:cellId, hp:tpl.hp, maxHp:tpl.hp, state:'ACTIVE', facing:facing || '+x' };
+    facilities[fid] = { id:fid, templateId:templateId, cellId:cellId, hp:tpl.hp, maxHp:tpl.hp, state:'ACTIVE', facing:facing || '+x',
+      createdTurn:createdTurn || 0, lastFiredTurn:null };   /* [VS-4] C4 K3：绝对回合戳（禁递减计数器；lastFiredTurn 发射记账） */
     F2.bus.publish('facility_registered', { facilityId:fid, cellId:cellId, templateId:templateId });
     return facilities[fid];
+  }
+  /* [VS-4] C3.7 repair 原语（校验语义：非 DESTROYED ∧ Δ>0；夹取语义在 C7 侧） */
+  function repairFacility(fid, deltaHp) {
+    var f = facilities[fid];
+    if (!f || f.state === 'DESTROYED') return { ok:false, why:'ALREADY_DESTROYED' };
+    if (!(deltaHp > 0)) return { ok:false, why:'BAD_DELTA' };
+    f.hp = Math.min(f.maxHp, f.hp + deltaHp);
+    return { ok:true, hp:f.hp };
+  }
+  /* [VS-4] C7.7 拆除：facilityId 释放 + 实体移除 + facility_dismantled 事件（零退款，退款在 C7/C6 侧语义） */
+  function removeFacility(fid) {
+    var f = facilities[fid]; if (!f || f.state === 'DESTROYED') return { ok:false, why:'BAD_TARGET' };
+    var c = F1.getCell(f.cellId);
+    if (c && c.facilityId === fid) { c.facilityId = null; }
+    var occ = F1.runtime().cellOccupancy[f.cellId]; if (occ && occ.facility === fid) occ.facility = null;
+    delete facilities[fid];
+    F2.bus.publish('facility_dismantled', { facilityId:fid, cellId:f.cellId, turn:F2.state().turn });
+    return { ok:true };
   }
   function resetPhaseResources() {             // C2.1：C 相位开始 MP/AP 回满
     unitsList().forEach(function (u) { if (u.alive) { u.mp = u.maxMp; u.ap = u.maxAp; } });
@@ -925,6 +975,20 @@ var WORLD = (function () {
     return it;
   }
 
+  /* [VS-4] 援军落点（F2 调度面）：部署区白名单内首个可容纳格 → spawn（garrison_squad，免费 C6-H）。
+   * 返回 true=到岗；false=落点满（F2 顺延，条目零丢失）。 */
+  function placeReinforcement(entry) {
+    var zones = F1.level().deployZones;
+    for (var zi = 0; zi < zones.length; zi++) {
+      var cells = zones[zi].cells.slice().sort();
+      for (var ci = 0; ci < cells.length; ci++) {
+        if (!F1.canPlace(cells[ci], 1)) continue;
+        if (spawn('DEFENDER', entry.templateId || 'garrison_squad', cells[ci])) return true;
+      }
+    }
+    return false;
+  }
+
   function onFall(p) { return C5.applyFallDamage(p); }   // E2 坠落伤害入口（F1 位移 → C5 伤害）
 
   function f2Hooks() {
@@ -941,9 +1005,30 @@ var WORLD = (function () {
         for (var i = 0; i < cs.length; i++) if (cs[i].status === 'DESTROYED' && !cs[i]._retire) { cs[i]._retire = true; n++; }
         if (n) F2.bus.publish('residue_cleared', { count:n });
       },
-      d2Economy: function (turn) { /* [VS-4] C6 收入结算（零 F4 消费——重放安全岛） */ },
-      d3Reinforce: function (turn) { /* [VS-4] 援军到岗（落点满顺延 F2.7） */ },
-      d5AdvanceCursor: function (turn) { return waveState.cursor; }
+      d2Economy: function (turn) {                       // [VS-4] D② C6 收入结算（零 F4 消费——重放安全岛）
+        var rep = C6.settleIncome(turn);
+        F2.state().dbe.incomeSettled = rep.ok;
+        return rep;
+      },
+      d3Reinforce: function (turn) {                     // [VS-4] D③ 援军到岗（免费 C6-H；顺延队列权威=F2 dbe，条目零丢失 F2.7）
+        var dbe = F2.state().dbe, arrived = 0, deferredTo = 0;
+        /* ① 顺延队列首位重试（F2.7：条目零丢失，可跨多回合堆积） */
+        for (var i = dbe.pendingReinforcements.length - 1; i >= 0; i--) {
+          var pend = dbe.pendingReinforcements[i];
+          if (placeReinforcement(pend)) { dbe.pendingReinforcements.splice(i, 1); arrived++; }
+          else deferredTo++;
+        }
+        /* ② 时刻表新到期条目（表只读，顺延不回写 C6-E9） */
+        var due = C6.dueReinforcements(turn);
+        for (i = 0; i < due.length; i++) {
+          if (placeReinforcement(due[i])) arrived++;
+          else { dbe.pendingReinforcements.push(due[i]); deferredTo++; }
+        }
+        if (arrived || deferredTo) F2.bus.publish('reinforce_arrived', { turn:turn, arrived:arrived, deferred:deferredTo });
+        return { arrived:arrived, deferred:deferredTo };
+      },
+      d5AdvanceCursor: function (turn) { return waveState.cursor; },
+      finalize: function (outcome, reason) { return C6.finalizeReport(outcome, reason); }   /* [VS-4] D④ 终局冻结（C6-E14） */
     };
   }
 
@@ -951,7 +1036,7 @@ var WORLD = (function () {
     var ld = T.level.L1.initialDeploy;
     for (var i = 0; i < ld.length; i++) spawn('DEFENDER', ld[i].templateId, ld[i].cellId);
     var lf = T.level.L1.initialFacilities;
-    for (i = 0; i < lf.length; i++) addFacility(lf[i].facilityId, lf[i].templateId, lf[i].cellId, lf[i].facing);
+    for (i = 0; i < lf.length; i++) addFacility(lf[i].facilityId, lf[i].templateId, lf[i].cellId, lf[i].facing, 1);
   }
 
   var inited = false;
@@ -960,11 +1045,15 @@ var WORLD = (function () {
     F4.init(seed || T.f4Seed);
     units = {}; facilities = {}; beaconState.hp = T.beacon.durability;
     waveState = { cursor:0, pendingSpawns:[], unitWaveMap:{}, unitIntents:{} };
-    seqN = 0;
+    seqN = 0; facilitySeqN = 0;
+    C6.init();                               /* [VS-4] 账本复位（treasury/流水/累计/幂等锚/终局报告） */
+    C6.initC6Bus();                          /* [VS-4] killed→缴获流水订阅接线（双段式 C6 §2.4） */
+    C4.resetRuntime();                       /* [VS-4] 齐射去重戳复位（E5 防线只拦同局重复发射） */
+    C7.resetRuntime();                       /* [VS-4] 指令流水复位（新局新流水） */
     F1.setFallHandler(onFall);
     F2.init('MVP_L1', f2Hooks());
     deployInitial();
-    if (!inited) { F2.bus.on('phase_enter', function (p) { if (p.phase === 'C') { resetPhaseResources(); C5.fireAllFacilities(); } }); inited = true; }
+    if (!inited) { F2.bus.on('phase_enter', function (p) { if (p.phase === 'C') { resetPhaseResources(); C4.fireVolley(); } }); inited = true; }
     F2.bus.publish('world_ready', {});
     return { units: Object.keys(units).length, seed: F4.state().state };
   }
@@ -974,8 +1063,11 @@ var WORLD = (function () {
            isAlive: isAlive, hasAura: hasAura, beaconHp: beaconHp, lootOf: lootOf,
            facilitiesList: facilitiesList, facility: facility, facilityAt: facilityAt,
            spawn: spawn, kill: kill, damageFacility: damageFacility, damageBeacon: damageBeacon,
-           addFacility: addFacility, resetPhaseResources: resetPhaseResources,
+           addFacility: addFacility, repairFacility: repairFacility, removeFacility: removeFacility,
+           resetPhaseResources: resetPhaseResources,
            currentIntent: currentIntent, spawnForTurn: spawnForTurn,
+           nextFacilityId: function () { facilitySeqN++; return 'fac_' + facilitySeqN; },
+           facilitySeq: function () { return facilitySeqN; },
            waveState: function () { return waveState; }, WAVES: function () { return WAVES_L1; } };
 })();
 
@@ -1259,13 +1351,8 @@ var C5 = (function () {
     F2.bus.publish('unit_fell', { uid:u.uid, landingCell:p.landingCell, dmg:res.dmg, killed:res.killed });
     return res;
   }
-  function fireAllFacilities() {                // C4 齐射锚点：combat_phase_started 期、C① 前的同步结算段
-    WORLD.facilitiesList().forEach(function (f) {
-      if (f.state === 'DESTROYED') return;
-      var tpl = T.facilities[f.templateId];
-      if (!tpl || !tpl.rangedCorridor) return;
-      strike({ attacker:f.id, kind:'CROSSBOW_VOLLEY', origin:f.cellId, dir:f.facing });
-    });
+  function fireAllFacilities() {                /* [VS-4] 已移交 C4.fireVolley（保留签名兼容 VS-3 消费面）；本函数不再被齐射锚点调用 */
+    return C4.fireVolley();
   }
   function expectedMods(uid) {
     var u = WORLD.unit(uid); if (!u) return { height:0, cover:0, exposed:0 };
@@ -1379,7 +1466,8 @@ var C8 = (function () {
   function objectives() {                        // 目标集（帅帐/戍卒/设施/通路）
     var W = T.aiScripts.targetWeights, out = [];
     out.push({ key:'BEACON', value:W.w_beacon, cellId:T.beacon.cellId, target:{ type:'BEACON' } });
-    WORLD.defenderUnits().forEach(function (d) { out.push({ key:'GARRISON:' + d.uid, base:'GARRISON', value:W.w_garrison, cellId:d.cellId, target:{ type:'GARRISON', unitId:d.uid } }); });
+    /* OFFBOARD=预备队（未上场）不构成战场目标（X-1 注记：不在场即不在 AI 目标集） */
+    WORLD.defenderUnits().forEach(function (d) { if (d.cellId === 'OFFBOARD') return; out.push({ key:'GARRISON:' + d.uid, base:'GARRISON', value:W.w_garrison, cellId:d.cellId, target:{ type:'GARRISON', unitId:d.uid } }); });
     WORLD.facilitiesList().forEach(function (f) { if (f.state === 'DESTROYED') return; out.push({ key:'FACILITY:' + f.id, base:'FACILITY', value:W.w_facility, cellId:f.cellId, target:{ type:'FACILITY', facilityId:f.id } }); });
     F1.allConnectors().forEach(function (c) { if (c.status !== 'ACTIVE') return; out.push({ key:'PATH:' + c.id, base:'PATH', value:W.w_path, cellId:c.to, target:{ type:'PATH', cellId:c.to } }); });
     return out;
@@ -1501,6 +1589,400 @@ var C8 = (function () {
   return { generatePlans:generatePlans, executePlan:executePlan, concentration:concentration,
            tryRaiseLadder:tryRaiseLadder, planFor:function (uid) { return plans[uid] || null; }, plans:function () { return plans; },
            lastDump:function () { return lastDump; }, objectives:objectives, intentWeights:intentWeights };
+})();
+
+/* ============================================================
+ * ═══ 分区 C6：粮饷经济（结构权威 C6 GDD v1.0.3）═══ [VS-4]
+ * 单一资源账房：A 相位 quote/charge（双拒绝态）；缴获双段式（C 相位流水登记 / D② 入账）；
+ * D② 固定子序 farm→supply→loot + 幂等锚；援军时刻表数据源（免费）；BattleEndReport 一次性冻结。
+ * 确定性红线：全程零 F4 消费（INV-C6-5，重放安全岛）——无 rand 无 Math.random 无墙钟。
+ * ============================================================ */
+var C6 = (function () {
+  var T = TABLES;
+  var eco = null;                              // TreasuryState（C6 §3.1）
+  var endReport = null;                        // BattleEndReport（一次性冻结，BE-8 二次调用拒绝）
+
+  function init() {
+    eco = {
+      treasury: T.economy.perLevel.L1.initialTreasury,
+      turnLastSettled: 0,
+      battleTotals: { farmTotal:0, supplyTotal:0, lootTotal:0, spentTotal:0 },
+      turnLedger: { lootEntries: [] },
+      attackerKilled: 0, defenderLost: 0
+    };
+    endReport = null;
+  }
+  function phase() { return F2.state() ? F2.state().phase : 'INIT'; }
+  function turn() { return F2.state() ? F2.state().turn : 0; }
+
+  /* ---- EconomyQuery（任何人可读；C7 消费）---- */
+  /* PurchaseItem→费用表键匹配（C6 §3.4/§3.5 键名桥）：指令面 templateId/facilityKind 用 C2/C3 域字面量
+   * （'garrison_squad' snake / 'BED_CROSSBOW' 枚举），费用表键为 camelCase（'garrisonSquad'/'bedCrossbow'，
+   * vs-playtest-sheet §5.5 键名权威）——quote 唯一负责映射：去下划线+小写双向归一后精确匹配。 */
+  function matchKey(map, s) {
+    var q = String(s || '').replace(/_/g, '').toLowerCase();
+    if (!q) return null;
+    var ks = Object.keys(map);
+    for (var i = 0; i < ks.length; i++) if (ks[i].replace(/_/g, '').toLowerCase() === q) return ks[i];
+    return null;
+  }
+  function treasury() { return eco.treasury; }
+  function quote(item) {                        // C6.3 查表报价；表内无键=不可购买
+    var c = T.economy.cost;
+    if (item.kind === 'BUILD_FACILITY') { var bk = matchKey(c.build, item.facilityKind); return bk !== null ? c.build[bk] : null; }
+    if (item.kind === 'DEPLOY_UNIT') { var dk = matchKey(c.deploy, item.templateId); return dk !== null ? c.deploy[dk] : null; }
+    if (item.kind === 'REPAIR_FACILITY') {
+      if (!(item.deltaHp > 0)) return null;     // C6-E8 负 Δ 拒绝（防逆向刷钱）
+      return Math.ceil(item.deltaHp * c.repair.perHp);
+    }
+    if (item.kind === 'WALL_REPAIR') {
+      if (!(item.deltaHp > 0)) return null;
+      return Math.ceil(item.deltaHp * c.wallRepair.perHp);
+    }
+    return null;
+  }
+  function canAfford(item) { var q = quote(item); return q !== null && eco.treasury >= q; }
+
+  /* ---- EconomyCommand.charge（仅 C7 消费；INV-C6-3 仅 A 相位窗口）----
+   * 双拒绝态：INSUFFICIENT（余额不足）/ ILLEGAL_WINDOW（非 A 相位）；失败余额零变化（C6.4）。 */
+  function charge(item) {
+    if (phase() !== 'A') return { ok:false, reason:'ILLEGAL_WINDOW' };
+    var q = quote(item);
+    if (q === null) return { ok:false, reason:'INSUFFICIENT' };   // 不可购买键视同拒绝（加载期校验兜底，灰盒收敛到 INSUFFICIENT）
+    if (eco.treasury < q) return { ok:false, reason:'INSUFFICIENT' };
+    eco.treasury -= q;
+    eco.battleTotals.spentTotal += q;
+    F2.bus.publish('treasury_changed', { delta:-q, reason:'CHARGE', treasuryAfter:eco.treasury });
+    return { ok:true, charged:q, treasuryAfter:eco.treasury };
+  }
+  /* C7 v1.0.1 MEDIUM-1 A 案防御性兜底：charge 成功而落地闸被终检拒绝时的整体回滚（告警恰好一次）。
+   * 正常路径不可达（预检完备+单线程）；仅撤销本次扣费（先钱后世界的事务闭合）。 */
+  function rollbackCharge(item) {
+    var q = quote(item);
+    if (q === null) return;
+    eco.treasury += q;
+    eco.battleTotals.spentTotal -= q;
+    F2.bus.publish('treasury_changed', { delta:+q, reason:'ROLLBACK', treasuryAfter:eco.treasury });
+  }
+
+  /* ---- 缴获双段式（C6 §2.4）：C 相位 killed 流水登记（append-only，余额不变）----
+   * 订阅接线在 WORLD.init 后（initC6Bus）；faction(dead)=ATTACKER 才登记（守方阵亡零缴获）。 */
+  function registerKill(payload) {
+    var u = WORLD.unit(payload.uid);
+    var faction = payload.faction || (u ? u.faction : null);
+    if (faction !== 'ATTACKER') return null;    // 守方阵亡零缴获（关内零扣费零抚恤 C6 §2.4）
+    var tid = payload.templateId || (u ? u.templateId : null);
+    var tpl = tid ? T.units[tid] : null;
+    var amount = (tpl && tpl.lootKey) ? (T.economy.loot.perTemplate[tpl.lootKey] || 0) : 0;
+    var entry = { killSeq: eco.turnLedger.lootEntries.length + 1, unitId: payload.uid,
+                  templateId: tid, amount: amount };   // 登记时点查表冻结（C6 §3.1 LootEntry）
+    eco.turnLedger.lootEntries.push(entry);
+    F2.bus.publish('loot_registered', { killSeq:entry.killSeq, unitId:entry.unitId, templateId:entry.templateId, amount:amount });
+    return entry;
+  }  function registerAttackerKill() { eco.attackerKilled++; }
+  function registerDefenderLoss() { eco.defenderLost++; }
+
+  /* ---- D② settleIncome（唯一入账窗口；固定子序 farm→supply→loot；幂等 C6.5）----
+   * supply=固定收入×烽燧存活实判系数（D② 执行瞬间查只读，F2 裁定 D①-D③ 不跳过：判负回合照常结算 C6-E2）。 */
+  function settleIncome(turn) {
+    if (!eco) return { ok:false, reason:'NO_LEDGER' };
+    if (turn <= eco.turnLastSettled) return { ok:false, reason:'IDEMPOTENT_REJECT', turn:turn, turnLastSettled:eco.turnLastSettled };
+    var farm = T.economy.income.farmBasePerTurn;                       // 屯田（farmBase>0 保底红线 ✓）
+    var supply = WORLD.beaconHp() > 0 ? T.economy.income.supplyBasePerTurn : 0;   // 补给线 ×beaconAlive 实判
+    var loot = 0;
+    for (var i = 0; i < eco.turnLedger.lootEntries.length; i++) loot += eco.turnLedger.lootEntries[i].amount;   // 按 killSeq 序汇总
+    eco.treasury += farm + supply + loot;                              // C6.1
+    eco.battleTotals.farmTotal += farm;
+    eco.battleTotals.supplyTotal += supply;
+    eco.battleTotals.lootTotal += loot;
+    eco.turnLedger.lootEntries = [];                                   // D② 汇总后清空（INV-C6-2）
+    eco.turnLastSettled = turn;
+    var rep = { ok:true, turn:turn, farm:farm, supply:supply, loot:loot, total:farm + supply + loot, treasuryAfter:eco.treasury };
+    F2.bus.publish('income_settled', rep);
+    return rep;
+  }
+
+  /* ---- D③ 时刻表数据源（C6 §3.2 ReinforceEntry；调度/顺延权威=F2）---- */
+  function dueReinforcements(turn) {
+    var sch = T.economy.reinforcementSchedule || [], out = [];
+    for (var i = 0; i < sch.length; i++) if (sch[i].dueTurn === turn) out.push(sch[i]);
+    return out;
+  }
+
+  /* ---- D④ 终局 BattleEndReport（C6 §3.3；一次性冻结，二次调用拒绝 BE-8）---- */
+  function finalizeReport(outcome, reason) {
+    if (endReport) return { ok:false, reason:'ALREADY_FINALIZED', report:endReport };
+    endReport = {
+      levelId:'MVP_L1', outcome:outcome, reason:reason || '', endTurn:turn(),
+      treasuryFinal:eco.treasury,
+      stats:{ farmTotal:eco.battleTotals.farmTotal, supplyTotal:eco.battleTotals.supplyTotal,
+              lootTotal:eco.battleTotals.lootTotal, spentTotal:eco.battleTotals.spentTotal,
+              attackerKilled:eco.attackerKilled, defenderLost:eco.defenderLost },
+      garrisonCasualties:[ { templateId:'garrison_squad', count:eco.defenderLost } ]
+    };
+    F2.bus.publish('battle_end_report', endReport);
+    return { ok:true, report:endReport };
+  }
+  function state() { return eco; }
+  function endReportFrozen() { return endReport; }
+
+  /* killed/unit_removed 事件订阅（接线一次；重放按事件流重建一致） */
+  var busInited = false;
+  function initC6Bus() {
+    if (busInited) return; busInited = true;
+    F2.bus.on('unit_killed', function (p) { registerKill(p); if (p.faction === 'ATTACKER') eco.attackerKilled++; else eco.defenderLost++; });
+  }
+
+  return { init:init, initC6Bus:initC6Bus, treasury:treasury, quote:quote, canAfford:canAfford, charge:charge, rollbackCharge:rollbackCharge,
+           settleIncome:settleIncome, dueReinforcements:dueReinforcements, finalizeReport:finalizeReport,
+           state:state, endReportFrozen:endReportFrozen };
+})();
+
+/* ============================================================
+ * ═══ 分区 C7：建设与部署（结构权威 C7 GDD v1.0.2）═══ [VS-4]
+ * 无状态编排层：六指令 × 五闸管线（窗口→寻址→世界→资金→落地）单事务（C7.1 下单即支付+立即落地）。
+ * 管世界校验（部署区/格型/容量/层位/设施互斥/耐久），钱归 C6（C7 禁私藏费用数值——只调 quote/charge）。
+ * 修墙=W-1 未落地整体封闭（C7-E8 WALL_REPAIR_UNAVAILABLE 恒拒绝）。
+ * ============================================================ */
+var C7 = (function () {
+  var T = TABLES;
+  var orderLog = [];                           // 指令流水（C7 §3.4：重放对账诊断用，世界重建不依赖）
+
+  function logOrder(turn, order, receipt) { orderLog.push({ seq:orderLog.length + 1, turn:turn, order:order, receipt:receipt }); return receipt; }
+
+  /* 部署区白名单（C7.2 Placeable=⋃deployZones.cells；静态数据，V12 已保证 ⊆passable∧守方侧） */
+  function placeableSet() {
+    var out = {}, zones = F1.level().deployZones;
+    for (var i = 0; i < zones.length; i++) for (var k = 0; k < zones[i].cells.length; k++) out[zones[i].cells[k]] = true;
+    return out;
+  }
+  function kindAllowed(facilityKind) { return T.facilities[facilityKind] ? [T.facilities[facilityKind].deployKind] : []; }
+
+  /* ---- 单指令事务（C7 §2.7）：任一步失败⇒整条拒绝，世界与钱包零污染 ---- */
+  function exec(order) {
+    var turn = F2.state() ? F2.state().turn : 0;
+    var receipt = dispatch(turn, order);
+    return logOrder(turn, order, receipt);
+  }
+  function dispatch(turn, order) {
+    /* ① 窗口闸（唯一权威=TurnQuery phase='A'；S1/E10） */
+    if (!F2.state() || F2.state().phase !== 'A') return { ok:false, reason:'ILLEGAL_WINDOW' };
+    var type = order.type;
+    /* WALL_REPAIR：W-1 未落地整体封闭（扩展隔离，C7-E8）——恒拒绝、UI 无入口 */
+    if (type === 'WALL_REPAIR') return { ok:false, reason:'WALL_REPAIR_UNAVAILABLE' };
+
+    if (type === 'BUILD_FACILITY') return execBuild(turn, order);
+    if (type === 'DEPLOY_UNIT') return execDeploy(turn, order);
+    if (type === 'REDEPLOY_UNIT') return execRedeploy(turn, order);
+    if (type === 'REPAIR_FACILITY') return execRepair(turn, order);
+    if (type === 'DISMANTLE_FACILITY') return execDismantle(turn, order);
+    return { ok:false, reason:'BAD_TARGET' };
+  }
+
+  /* 建造（C7 §2.3）：B1 白名单 → B2 格型 → B3 设施互斥（预检，F1 registerFacility 终检双闸）
+   * → B4 facing 必填（床弩）→ 资金闸 → 落地闸（createdTurn=t 写入，C4.3 架设推导消费）。 */
+  function execBuild(turn, order) {
+    var tpl = T.facilities[order.facilityKind];
+    if (!order.cellId || !F1.getCell(order.cellId)) return { ok:false, reason:'BAD_TARGET' };
+    var placeable = placeableSet();
+    if (!placeable[order.cellId]) return { ok:false, reason:'OUT_OF_ZONE' };                       // B1
+    if (kindAllowed(order.facilityKind).indexOf(F1.getCell(order.cellId).kind) < 0) return { ok:false, reason:'BAD_CELL_KIND' };   // B2
+    if (F1.getCell(order.cellId).facilityId || WORLD.facilityAt(order.cellId)) return { ok:false, reason:'CELL_OCCUPIED_FACILITY' };   // B3
+    var isCrossbow = !!(tpl && tpl.rangedCorridor);
+    if (isCrossbow && ['+x','-x','+z','-z'].indexOf(order.facing) < 0) return { ok:false, reason:'MISSING_FACING' };   // B4 无默认值
+    var item = { kind:'BUILD_FACILITY', facilityKind:order.facilityKind };
+    var pay = C6.charge(item);                                                                    // ④ 资金闸（C6 终检）
+    if (!pay.ok) return { ok:false, reason:pay.reason };
+    var fid = order.facilityId || WORLD.nextFacilityId();                                          // ⑤ 落地闸
+    var created = WORLD.addFacility(fid, order.facilityKind, order.cellId, order.facing, turn);
+    if (!created) { /* 防御性兜底（终检双闸第二闸拒入；v1.0.1 MEDIUM-1 A 案：本事务零半执行，charge 已入账须回滚） */
+      C6.rollbackCharge(item); return { ok:false, reason:'CELL_OCCUPIED_FACILITY' }; }
+    if (isCrossbow) created.state = 'CONSTRUCTING';               /* C4.3：建成当轮不可射（setupTurns=1 推导） */
+    else created.state = 'ARMED';                                  /* 礌石部署即 ARMED、当轮可投（C7 §2.3） */
+    F2.bus.publish('facility_built', { facilityId:fid, facilityKind:order.facilityKind, cellId:order.cellId, facing:order.facing || null, turn:turn });
+    return { ok:true, charged:pay.charged, facilityId:fid };
+  }
+
+  /* 部署（C7 §2.4）：D1 白名单 → D2 容量 → D3 层位 → D4 阵营 → 资金闸 → 落地闸（购买即部署）。 */
+  function execDeploy(turn, order) {
+    var tpl = T.units[order.templateId];
+    if (!tpl || !order.cellId || !F1.getCell(order.cellId)) return { ok:false, reason:'BAD_TARGET' };
+    if (tpl.faction !== 'DEFENDER') return { ok:false, reason:'WRONG_FACTION' };                   // D4
+    var placeable = placeableSet();
+    if (!placeable[order.cellId]) return { ok:false, reason:'OUT_OF_ZONE' };                       // D1
+    if (!F1.canPlace(order.cellId, 1)) return { ok:false, reason:'CELL_FULL' };                    // D2
+    if (tpl.layerAccess.indexOf(F1.getCell(order.cellId).h) < 0) return { ok:false, reason:'NO_LAYER_ACCESS' };   // D3
+    var item = { kind:'DEPLOY_UNIT', templateId:order.templateId };
+    var pay = C6.charge(item);
+    if (!pay.ok) return { ok:false, reason:pay.reason };
+    var u = WORLD.spawn('DEFENDER', order.templateId, order.cellId);
+    if (!u) { C6.rollbackCharge(item); return { ok:false, reason:'CELL_FULL' }; }                  // 防御性兜底（同上零半执行）
+    return { ok:true, charged:pay.charged, unitId:u.uid };
+  }
+
+  /* 重置（C7 §2.4/C7.8）：零费位移（已购资产位移不触 C6）；目标格走与部署同款世界闸（重置不是搬家特权）。
+   * OFFBOARD 哨兵=已购未上场（DEPLOYED∧OFFBOARD 组合态，X-1 注记；再部署零费用）。 */
+  function execRedeploy(turn, order) {
+    var u = WORLD.unit(order.unitId);
+    if (!u || !u.alive) return { ok:false, reason:'BAD_TARGET' };                                  // S2 寻址
+    if (order.toCellId !== 'OFFBOARD') {
+      if (!order.toCellId || !F1.getCell(order.toCellId)) return { ok:false, reason:'BAD_TARGET' };
+      if (order.toCellId === u.cellId) return { ok:false, reason:'SAME_CELL' };                    // D5
+      var placeable = placeableSet();
+      if (!placeable[order.toCellId]) return { ok:false, reason:'OUT_OF_ZONE' };                   // D1
+      if (!F1.canPlace(order.toCellId, 1)) return { ok:false, reason:'CELL_FULL' };                // D2
+      if (u.layerAccess.indexOf(F1.getCell(order.toCellId).h) < 0) return { ok:false, reason:'NO_LAYER_ACCESS' };   // D3
+      /* OFFBOARD→上场走 placeUnit（removeUnit 后单位已不在任何格账，moveUnit 的 from 寻址必失败）；
+       * 场内位移走 moveUnit 原子跨格（INV4 先校验后双端登记）。 */
+      var mv = (u.cellId === 'OFFBOARD') ? F1.placeUnit(order.unitId, order.toCellId) : F1.moveUnit(order.unitId, order.toCellId);
+      if (!mv.ok) return { ok:false, reason:'CELL_FULL' };
+      u.cellId = order.toCellId;
+    } else {
+      F1.removeUnit(order.unitId);
+      u.cellId = 'OFFBOARD';                        // 占位态迁移：从格子账清除即离场（F1 §2.6 OFFBOARD 态）
+    }
+    F2.bus.publish('unit_redeployed', { unitId:order.unitId, toCellId:u.cellId });
+    return { ok:true, charged:0 };                  // C7.8 Δtreasury=0
+  }
+
+  /* 修理（C7 §2.5/C7.5）：R1 非 DESTROYED ∧ 有缺口 → R2 Δ>0 → 夹取 Δ′=min(Δ,maxHp−hp) → 按 Δ′ 报价扣费落地。 */
+  function execRepair(turn, order) {
+    var f = WORLD.facility(order.facilityId);
+    if (!f) return { ok:false, reason:'BAD_TARGET' };                                              // S2 寻址
+    if (f.state === 'DESTROYED') return { ok:false, reason:'ALREADY_DESTROYED' };                  // R1
+    if (!(order.deltaHp > 0)) return { ok:false, reason:'BAD_DELTA' };                             // R2（防逆向刷钱 C6-E8）
+    if (f.hp >= f.maxHp) return { ok:false, reason:'NO_DAMAGE' };                                  // R1（SPENT 满血自然拒绝）
+    var delta = Math.min(order.deltaHp, f.maxHp - f.hp);                                           // C7.5 夹取
+    var item = { kind:'REPAIR_FACILITY', facilityId:order.facilityId, deltaHp:delta };
+    var pay = C6.charge(item);
+    if (!pay.ok) return { ok:false, reason:pay.reason };
+    var rp = WORLD.repairFacility(order.facilityId, delta);
+    if (!rp.ok) { C6.rollbackCharge(item); return { ok:false, reason:rp.why }; }                   // 防御性兜底
+    return { ok:true, charged:pay.charged, repaired:delta, hpAfter:rp.hp };
+  }
+
+  /* 拆除（C7 §2.5/C7.7）：R3 非 DESTROYED → 零退款释放（纠错=沉没成本；朝向悔棋/腾格路径）。 */
+  function execDismantle(turn, order) {
+    var f = WORLD.facility(order.facilityId);
+    if (!f) return { ok:false, reason:'BAD_TARGET' };
+    if (f.state === 'DESTROYED') return { ok:false, reason:'BAD_TARGET' };                         // R3（E7 链已移除则寻址失败）
+    var rm = WORLD.removeFacility(order.facilityId);
+    if (!rm.ok) return { ok:false, reason:rm.why };
+    return { ok:true, charged:0, refunded:0 };      // 零退款（C6 OQ-4 终裁；dismantleRefundRatio MVP 恒零）
+  }
+
+  /* 修墙报价查询（UI 灰显用；指令恒拒绝——键位预留 cost.wallRepair.perHp 待 W-1 启用零浪费） */
+  function wallRepairAvailable() { return false; }   // W-1 未落地恒 false（C7-E8）
+
+  function logSnapshot() { return orderLog.slice(); }
+  return { exec:exec, placeableSet:placeableSet, wallRepairAvailable:wallRepairAvailable, logSnapshot:logSnapshot,
+           resetRuntime:function () { orderLog = []; } };   /* [VS-4] 指令流水随世界重建清空（C7 §3.4：流水可丢弃，世界重建不依赖） */
+})();
+
+/* ============================================================
+ * ═══ 分区 C4：器械运作节拍（结构权威 C4 GDD v1.0.2）═══ [VS-4]
+ * 单一时钟源（K1）：零自有状态、零计时器——全部轮数=F2 权威 turn 的推导函数（K3）。
+ * 齐射锚点=phase_enter C 处理期内同步结算段（C4.1，恒早于 C① MP 重置与行动序快照）；
+ * facility_volley 每回合至多一次（volleyId=`${turn}_V`），空载回合照发空载荷（N2 配对性）。
+ * ============================================================ */
+var C4 = (function () {
+  var T = TABLES;
+  function curTurn() { return F2.state() ? F2.state().turn : 0; }   // K1：时钟唯一权威=F2 TurnQuery（F1 turn 镜像同值）
+  /* C4.2 装填就绪推导（纯函数；禁递减计数器/禁时钟回拨——读档穿越与连续推进逐字节一致）。
+   * 语义=C3 §2.2「发射→装填 1 轮→可再射」+ C4.2 原式 `turn ≥ lastFiredTurn + reloadTurns`。
+   * 数学事实（reloadTurns=1）：发射于 t → t+1 即就绪（t+1 ≥ t+1 真）——「装填占用发射后的 1 轮间隔」
+   * 同回合不可能二射（E5 volleyId 去重承担频次防线）；跨回合 t+1 恢复可射 = reloadTurns 的字面语义。
+   * VS-1 §6.4「装填轮次减半」= 每 2 轮 1 发的 DPS 折算口径（齐射锚点每回合恰一次 → 发射当轮
+   * 已消费锚点，次轮锚点自然可再射——节拍即「射一轮歇零整轮」，教学关火力真空由架设期承担）。 */
+  function canFireAt(f, t) {
+    if (f.lastFiredTurn === null || f.lastFiredTurn === undefined) return true;
+    return t >= f.lastFiredTurn + T.facilities.bedCrossbow.reloadTurns;
+  }
+  /* C4.3 架设就绪推导（MVP setupTurns=1：建成当轮不可射） */
+  function setupReadyAt(f, t) {
+    return t >= (f.createdTurn || 0) + (T.facilities.bedCrossbow.setupTurns || 1);
+  }
+  function volleyedThisTurn() { return _lastVolleyId === curTurn() + '_V'; }
+  var _lastVolleyId = null;
+  /* 齐射窗口（C4 §2.1）：物化可射床弩（facilityId 字典序）→ 逐具 strike → 发 facility_volley。
+   * 物化条件 = CONSTRUCTING 已满架设期（C4.3）∧ 非装填轮（C4.2）∧ 存活；空载回合照发 results=[]（E1）。
+   * 同回合重复进入窗口 = no-op（E5 防线：volleyId 一致性；推导式兜底）。 */
+  function fireVolley() {
+    var t = curTurn();
+    var volleyId = t + '_V';
+    if (_lastVolleyId === volleyId) return null;    // C4-E5 同回合重复发射防护
+    var results = [];
+    var cands = WORLD.facilitiesList().filter(function (f) {
+      var tpl = T.facilities[f.templateId];
+      if (!tpl || !tpl.rangedCorridor || f.state === 'DESTROYED') return false;
+      return canFireAt(f, t) && setupReadyAt(f, t);
+    });
+    cands.sort(function (a, b) { return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0); });   // C4.4 facilityId 字典序
+    for (var i = 0; i < cands.length; i++) {
+      var f = cands[i];
+      var rep = C5.strike({ attacker:f.id, kind:'CROSSBOW_VOLLEY', origin:f.cellId, dir:f.facing });
+      f.lastFiredTurn = t;                          /* C4.2 记账：发射瞬间写绝对回合戳（定义权 C4，执行宿主 C3/WORLD） */
+      f.state = 'RELOADING';                        /* 显示加速字段（C4.6：逻辑权威=canFireAt 推导式） */
+      results.push({ facilityId:f.id, dir:f.facing, targetLineup:rep.perTarget.map(function (p) { return p.target; }), strikes:[rep] });
+    }
+    /* RELOADING→READY / CONSTRUCTING→READY 批量翻转（C4.6 显示字段；逻辑权威=推导式，本翻转仅供 UI） */
+    WORLD.facilitiesList().forEach(function (f) {
+      var tpl = T.facilities[f.templateId];
+      if (!tpl || !tpl.rangedCorridor || f.state === 'DESTROYED') return;
+      if (f.state === 'RELOADING' && canFireAt(f, t)) f.state = 'READY';
+      else if (f.state === 'CONSTRUCTING' && setupReadyAt(f, t)) f.state = 'READY';
+    });
+    _lastVolleyId = volleyId;
+    var ev = { type:'facility_volley', turn:t, volleyId:volleyId, results:results };
+    F2.bus.publish('facility_volley', ev);
+    return ev;
+  }
+  /* C3.5 canDrop 判定原语（礌石自由指令；托管面 C10 消费同一原语，禁止直调 F1 destroyConnector）。
+   * 四拒绝：NO_LADDER / OUT_OF_REACH / NO_CREW / SPENT；距离=曼哈顿 ∧ 轴向 |Δx|≤dropRadius（C3.5 v1.0.2 注记）。 */
+  function canDrop(stockId, ladderId) {
+    var s = WORLD.facility(stockId);
+    if (!s || s.state === 'DESTROYED') return { ok:false, reason:'NO_LADDER' };
+    if (s.state === 'SPENT') return { ok:false, reason:'SPENT' };
+    var cn = C1.connById(ladderId);
+    if (!cn || cn.status !== 'ACTIVE' || cn.connKind !== 'LADDER') return { ok:false, reason:'NO_LADDER' };
+    var sc = F1.getCell(s.cellId), tc = F1.getCell(cn.to);
+    if (!sc || !tc) return { ok:false, reason:'NO_LADDER' };
+    var dx = Math.abs(tc.x - sc.x), dz = Math.abs(tc.z - sc.z);
+    var r = T.facilities.rollingStock.dropRadius;
+    if (dx + dz > r || dx > r) return { ok:false, reason:'OUT_OF_REACH' };
+    /* 人力约束（C3-E）：梯顶相邻垛口/马道格 ∃存活守方单位——「没人搬不动石头」；结算瞬间复核（C3-E9）。 */
+    var crew = false;
+    var near = cellNeighbors(tc);
+    for (var i = 0; i < near.length; i++) {
+      var occ = F1.occupancyOf(near[i]);
+      for (var k = 0; k < occ.units.length; k++) {
+        if (WORLD.factionOf(occ.units[k]) === 'DEFENDER' && WORLD.isAlive(occ.units[k])) { crew = true; break; }
+      }
+      if (crew) break;
+    }
+    if (!crew) return { ok:false, reason:'NO_CREW' };
+    return { ok:true };
+  }
+  function cellNeighbors(c) {
+    var d = [[0,0],[1,0],[-1,0],[0,1],[0,-1]], out = [];
+    for (var i = 0; i < d.length; i++) { var n = F1.cellId(c.x + d[i][0], c.z + d[i][1], c.h); if (F1.getCell(n)) out.push(n); }
+    return out;
+  }
+  /* drop 投放自由指令（C 相位任意时点，不占行动槽 C4-E9；A 相位拒绝 C3-E14）。
+   * 校验先行：拒绝不消耗库存（C3-E8）；效果链走 C5.strike 五步固定序（SPENT→DESTROY→RELOCATE→DROP_DAMAGE→RESIDUE）。 */
+  function drop(stockId, ladderId) {
+    if (!F2.state() || F2.state().phase !== 'C') return { ok:false, reason:'ILLEGAL_WINDOW', consumed:false };
+    var cd = canDrop(stockId, ladderId);
+    if (!cd.ok) return { ok:false, reason:cd.reason, consumed:false };
+    var rep = C5.strike({ attacker:stockId, kind:'ROLLING_STOCK', ladderId:ladderId });
+    var s = WORLD.facility(stockId);
+    if (s) s.state = 'SPENT';                       // ① 消耗（五步序首步的账面落点）
+    F2.bus.publish('stock_dropped', { stockId:stockId, ladderId:ladderId, turn:curTurn() });
+    return { ok:true, consumed:true, report:rep };
+  }
+  return { fireVolley:fireVolley, canFireAt:canFireAt, setupReadyAt:setupReadyAt, canDrop:canDrop, drop:drop,
+           volleyedThisTurn:volleyedThisTurn, lastVolleyId:function () { return _lastVolleyId; },
+           resetRuntime:function () { _lastVolleyId = null; } };   /* [VS-4] 去重戳随世界重建复位（重放/浏览器重跑幂等；K1 逻辑权威仍为推导式） */
 })();
 
 /* ============================================================
@@ -1973,6 +2455,31 @@ function boot() {
     refreshHud();
   };
 
+  /* --- VS-4 验收四按钮：断言套件消费（纯数据 → 日志渲染） --- */
+  function runVs4Suite(key, title) {
+    log('▶ ' + title + ' …');
+    var r = VS4Selftest[key]();
+    r.checks.forEach(function (c) { log('　' + (c.pass ? '✓ ' : '✗ ') + c.name + (c.detail ? '（' + c.detail + '）' : ''), c.pass ? '' : 'bad'); });
+    var npass = r.checks.filter(function (c) { return c.pass; }).length;
+    log('　' + title + ' → ' + npass + '/' + r.checks.length + (r.pass ? ' 全部 PASS ✓' : ' 存在 FAIL ✗'), r.pass ? 'ok' : 'bad');
+    refreshHud();
+    return r;
+  }
+  $('btn-economy').onclick = function () { runVs4Suite('economy', 'VS-4 经济断言（D② 子序/双拒绝态/缴获双段式）'); };
+  $('btn-c7orders').onclick = function () { runVs4Suite('c7', 'C7 五闸/六指令断言'); };
+  $('btn-c4rhythm').onclick = function () { runVs4Suite('c4', 'C4 装填节拍/礌石断言'); };
+  $('btn-v4all').onclick = function () {
+    log('▶ VS-4 全量自检（economy + loot + c7 + c4 + dPhase）…');
+    var all = VS4Selftest.vs4all();
+    [['economy', '经济'], ['loot', '缴获'], ['c7', 'C7 五闸'], ['c4', 'C4 节拍'], ['dPhase', 'D 相位收口']].forEach(function (p) {
+      var s = all[p[0]];
+      var npass = s.checks.filter(function (c) { return c.pass; }).length;
+      log('　' + p[1] + '：' + npass + '/' + s.checks.length + (s.pass ? ' PASS ✓' : ' FAIL ✗'), s.pass ? '' : 'bad');
+    });
+    log('　VS-4 全量 → ' + (all.pass ? '全部 PASS ✓' : '存在 FAIL ✗'), all.pass ? 'ok' : 'bad');
+    refreshHud();
+  };
+
   /* ---- VS-3 验收辅助（供无头/浏览器自动化调用；返回纯数据，无 DOM 依赖）---- */
   function logicalDigest() {                     // 逻辑态快照串（确定性断言用）
     var parts = [];
@@ -2057,6 +2564,238 @@ function boot() {
     }
   };
 
+  /* ============================================================
+   * [VS-4] 断言套件（返回纯数据、零 DOM 依赖；无头 vs4-check.js 与浏览器双消费）
+   * ============================================================ */
+  /* N1. D② 经济子序：固定 farm→supply→loot + 幂等 + 双拒绝态 + 原子扣费（零 F4 消费） */
+  function economyCheck() {
+    WORLD.init(TABLES.f4Seed);
+    var r = { checks: [], pass: true };
+    function chk(name, cond, detail) { r.checks.push({ name: name, pass: !!cond, detail: detail || '' }); if (!cond) r.pass = false; }
+    var rep1 = C6.settleIncome(1);                       // D② 首结算（本回合无战斗 → loot=0）
+    chk('d2_farm', rep1.farm === TABLES.economy.income.farmBasePerTurn, 'farm=' + rep1.farm);
+    chk('d2_supply', rep1.supply === TABLES.economy.income.supplyBasePerTurn, 'supply=' + rep1.supply);
+    chk('d2_total', rep1.total === rep1.farm + rep1.supply + rep1.loot, 'total=' + rep1.total);
+    chk('d2_treasury_after', rep1.treasuryAfter === TABLES.economy.perLevel.L1.initialTreasury + rep1.total, 'after=' + rep1.treasuryAfter);
+    var rep2 = C6.settleIncome(1);                       // 幂等：同回合重入拒绝（C6.5）
+    chk('d2_idempotent', !rep2.ok && rep2.reason === 'IDEMPOTENT_REJECT', JSON.stringify(rep2));
+    var before = C6.treasury();
+    WORLD.init(TABLES.f4Seed);                           // 复位（INIT 态，窗口外）
+    F2.beginPhase('A', 'chk');                           // 进 A 后再移出：构造「非 A 窗口」
+    F2.beginPhase('B', 'chk');
+    var cw = C6.charge({ kind: 'BUILD_FACILITY', facilityKind: 'rollingStock' });
+    chk('charge_window', !cw.ok && cw.reason === 'ILLEGAL_WINDOW' && C6.treasury() === TABLES.economy.perLevel.L1.initialTreasury, JSON.stringify(cw));
+    resetBattle(true);                                   // 回到 INIT；进 A
+    F2.beginPhase('A', 'chk');
+    var poor = C6.charge({ kind: 'DEPLOY_UNIT', templateId: 'garrison_squad' });   // 480 足额 → 成功
+    chk('charge_ok_atomic', poor.ok && poor.charged === TABLES.economy.cost.deploy.garrisonSquad, 'charged=' + poor.charged);
+    C6.settleIncome(1);                                  // 推进账本到 T1 已结算（便于后续重放校验）
+    r.pass = r.checks.every(function (c) { return c.pass; });
+    resetBattle(true);
+    return r;
+  }
+  /* N2. 缴获双段式：C 相位流水登记（append-only）/ D② 入账 / 守方阵亡零登记 */
+  function lootCheck() {
+    WORLD.init(TABLES.f4Seed);
+    var r = { checks: [], pass: true };
+    function chk(name, cond, detail) { r.checks.push({ name: name, pass: !!cond, detail: detail || '' }); if (!cond) r.pass = false; }
+    var cur0 = F4.cursor();
+    var foe = WORLD.spawn('ATTACKER', 'ladder_infantry', '1_1_0');
+    var own = WORLD.spawn('DEFENDER', 'garrison_squad', '7_1_1');
+    var eco0 = C6.state();
+    var n0 = eco0.turnLedger.lootEntries.length;
+    WORLD.kill(own.uid, 'chk_own');                      // 守方阵亡 → 零登记
+    chk('own_death_no_entry', eco0.turnLedger.lootEntries.length === n0, 'len=' + eco0.turnLedger.lootEntries.length);
+    WORLD.kill(foe.uid, 'chk_foe');                      // 攻方阵亡 → 登记 ladderInfantry=30
+    var e1 = eco0.turnLedger.lootEntries[eco0.turnLedger.lootEntries.length - 1];
+    chk('foe_loot_registered', e1 && e1.amount === TABLES.economy.loot.perTemplate.ladderInfantry, 'amount=' + (e1 ? e1.amount : 'null'));
+    chk('ledger_append_only', eco0.turnLedger.lootEntries.length === n0 + 1, 'len=' + eco0.turnLedger.lootEntries.length);
+    chk('register_zero_f4', F4.cursor() === cur0, 'cursor unchanged');
+    chk('treasury_untouched', C6.treasury() === TABLES.economy.perLevel.L1.initialTreasury, '双段式：登记不动余额');
+    F2.beginPhase('A', 'chk'); F2.beginPhase('B', 'chk'); F2.beginPhase('C', 'chk'); F2.beginPhase('D', 'chk');
+    var rep = C6.settleIncome(F2.state().turn);          // D② 汇总入账
+    chk('d2_loot_in', rep.ok && rep.loot === TABLES.economy.loot.perTemplate.ladderInfantry, 'loot=' + rep.loot);
+    chk('d2_ledger_cleared', C6.state().turnLedger.lootEntries.length === 0, 'D② 后流水清空');
+    r.pass = r.checks.every(function (c) { return c.pass; });
+    resetBattle(true);
+    return r;
+  }
+  /* N3. C7 五闸六指令：建造/部署/重置零费/修理夹取/拆除零退款/修墙封闭/窗口与资金双闸 */
+  function c7Check() {
+    WORLD.init(TABLES.f4Seed);
+    var r = { checks: [], pass: true };
+    function chk(name, cond, detail) { r.checks.push({ name: name, pass: !!cond, detail: detail || '' }); if (!cond) r.pass = false; }
+    var cur0 = F4.cursor();
+    /* 窗口闸：非 A 相位恒拒绝 */
+    var w = C7.exec({ type: 'BUILD_FACILITY', cellId: '6_1_1', facilityKind: 'bedCrossbow', facing: '-x' });
+    chk('window_gate', !w.ok && w.reason === 'ILLEGAL_WINDOW', JSON.stringify(w));
+    F2.beginPhase('A', 'chk');
+    /* 建造：白名单外 */
+    var oz = C7.exec({ type: 'BUILD_FACILITY', cellId: '1_0_0', facilityKind: 'bedCrossbow', facing: '-x' });
+    chk('build_out_of_zone', !oz.ok && oz.reason === 'OUT_OF_ZONE', JSON.stringify(oz));
+    /* 建造：床弩 facing 必填 */
+    var mf = C7.exec({ type: 'BUILD_FACILITY', cellId: '7_1_1', facilityKind: 'bedCrossbow' });
+    chk('build_missing_facing', !mf.ok && mf.reason === 'MISSING_FACING', JSON.stringify(mf));
+    /* 建造：设施互斥（6_1_1 已有初始床弩） */
+    var oc = C7.exec({ type: 'BUILD_FACILITY', cellId: '6_1_1', facilityKind: 'bedCrossbow', facing: '-x' });
+    chk('build_occupied', !oc.ok && oc.reason === 'CELL_OCCUPIED_FACILITY', JSON.stringify(oc));
+    /* 建造成功：支付 100 + CONSTRUCTING + createdTurn 写入 */
+    var t0 = C6.treasury();
+    var okb = C7.exec({ type: 'BUILD_FACILITY', cellId: '7_1_1', facilityKind: 'bedCrossbow', facing: '+x' });
+    var fb = WORLD.facility(okb.facilityId);
+    chk('build_ok', okb.ok && C6.treasury() === t0 - TABLES.economy.cost.build.bedCrossbow, 'charged=' + okb.charged);
+    chk('build_constructing', fb && fb.state === 'CONSTRUCTING' && fb.createdTurn === 1, 'state=' + (fb && fb.state) + ' createdTurn=' + (fb && fb.createdTurn));
+    /* 部署：容量满拒绝 + 成功扣费 */
+    var cf = C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_0_1', templateId: 'garrison_squad' });   // 垛口容量 1，初始 D_2 占位
+    chk('deploy_cell_full', !cf.ok && cf.reason === 'CELL_FULL', JSON.stringify(cf));
+    var t1 = C6.treasury();
+    var okd = C7.exec({ type: 'DEPLOY_UNIT', cellId: '7_1_1', templateId: 'garrison_squad' });  // 两套账：与床弩同格合法
+    chk('deploy_ok_two_ledgers', okd.ok && C6.treasury() === t1 - TABLES.economy.cost.deploy.garrisonSquad, 'charged=' + okd.charged);
+    /* 重置：零费位移 + SAME_CELL + OFFBOARD + 再部署零费 */
+    var t2 = C6.treasury();
+    var sc = C7.exec({ type: 'REDEPLOY_UNIT', unitId: okd.unitId, toCellId: okd.unitId && WORLD.unit(okd.unitId).cellId });
+    chk('redeploy_same_cell', !sc.ok && sc.reason === 'SAME_CELL', JSON.stringify(sc));
+    var ob = C7.exec({ type: 'REDEPLOY_UNIT', unitId: okd.unitId, toCellId: 'OFFBOARD' });
+    var t3 = C6.treasury();
+    chk('redeploy_offboard_free', ob.ok && ob.charged === 0 && t2 === t3, 'Δtreasury=' + (t3 - t2));
+    var rd = C7.exec({ type: 'REDEPLOY_UNIT', unitId: okd.unitId, toCellId: '6_1_1' });
+    chk('redeploy_move_free', rd.ok && rd.charged === 0 && WORLD.unit(okd.unitId).cellId === '6_1_1', 'cell=' + WORLD.unit(okd.unitId).cellId);
+    /* 破产=禁止下单：压到余额 < 造价 */
+    (function drain() { while (C6.treasury() >= TABLES.economy.cost.build.rollingStock) { C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' }); if (!C6.canAfford({ kind: 'BUILD_FACILITY', facilityKind: 'rollingStock' })) break; } })();
+    var t4 = C6.treasury();
+    var drained = [];
+    while (C6.treasury() >= TABLES.economy.cost.deploy.garrisonSquad) drained.push(C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' }));
+    var ins = C7.exec({ type: 'BUILD_FACILITY', cellId: '7_1_1', facilityKind: 'rollingStock' });
+    chk('bankrupt_insufficient', !ins.ok && ins.reason === 'INSUFFICIENT' && C6.treasury() < TABLES.economy.cost.build.rollingStock, '余额=' + C6.treasury() + ' < 造价=' + TABLES.economy.cost.build.rollingStock);
+    /* 修理：夹取 + BAD_DELTA + 满血 NO_DAMAGE */
+    var xbow = WORLD.facilityAt('6_1_1');
+    var dmg = WORLD.damageFacility('bed_crossbow_1', 7);          // 制造缺口（30-7=23）
+    var t5 = C6.treasury();
+    var ovr = C7.exec({ type: 'REPAIR_FACILITY', facilityId: 'bed_crossbow_1', deltaHp: 999 });
+    chk('repair_clamp', ovr.ok && ovr.repaired === dmg.dmg && ovr.charged === dmg.dmg * TABLES.economy.cost.repair.perHp, 'Δ′=' + ovr.repaired + ' charged=' + ovr.charged);
+    var bd = C7.exec({ type: 'REPAIR_FACILITY', facilityId: 'bed_crossbow_1', deltaHp: -5 });
+    chk('repair_bad_delta', !bd.ok && bd.reason === 'BAD_DELTA', JSON.stringify(bd));
+    var nd = C7.exec({ type: 'REPAIR_FACILITY', facilityId: 'bed_crossbow_1', deltaHp: 3 });
+    chk('repair_no_damage', !nd.ok && nd.reason === 'NO_DAMAGE', JSON.stringify(nd));
+    /* 拆除：零退款 + 格释放 */
+    var t6 = C6.treasury();
+    var dm = C7.exec({ type: 'DISMANTLE_FACILITY', facilityId: 'bed_crossbow_1' });
+    chk('dismantle_no_refund', dm.ok && dm.refunded === 0 && C6.treasury() === t6, 'Δtreasury=' + (C6.treasury() - t6));
+    chk('dismantle_cell_freed', !WORLD.facilityAt('6_1_1') || WORLD.facilityAt('6_1_1').id !== 'bed_crossbow_1', '格已释放');
+    var dm2 = C7.exec({ type: 'DISMANTLE_FACILITY', facilityId: 'bed_crossbow_1' });
+    chk('dismantle_dead_target', !dm2.ok && dm2.reason === 'BAD_TARGET', JSON.stringify(dm2));
+    /* 修墙：W-1 未落地整体封闭 */
+    var wr = C7.exec({ type: 'WALL_REPAIR', connectorId: 'sl_L1_gate', deltaHp: 3 });
+    chk('wall_repair_closed', !wr.ok && wr.reason === 'WALL_REPAIR_UNAVAILABLE' && !C7.wallRepairAvailable(), JSON.stringify(wr));
+    chk('c7_zero_f4', F4.cursor() >= cur0, 'cursor ' + cur0 + '→' + F4.cursor());
+    chk('inv_c6_1', C6.treasury() >= 0, 'treasury=' + C6.treasury());
+    r.pass = r.checks.every(function (c) { return c.pass; });
+    resetBattle(true);
+    return r;
+  }
+  /* N4. C4 节拍：facility_volley 形状 / 装填推导 / 架设推导 / 礌石 canDrop 四拒绝 + 自由指令 */
+  function c4Check() {
+    WORLD.init(TABLES.f4Seed);
+    var r = { checks: [], pass: true };
+    function chk(name, cond, detail) { r.checks.push({ name: name, pass: !!cond, detail: detail || '' }); if (!cond) r.pass = false; }
+    var cur0 = F4.cursor();
+    /* volleyId 形状：T1 窗口（初始床弩 createdTurn=1 → 当轮 CONSTRUCTING 不可射 → 空载 results=[]） */
+    F2.beginPhase('A', 'chk'); F2.beginPhase('B', 'chk'); F2.beginPhase('C', 'chk');
+    var ev = C4.lastVolleyId() === '1_V';
+    chk('volley_id_shape', ev, 'volleyId=' + C4.lastVolleyId());
+    chk('setup_not_ready', WORLD.facility('bed_crossbow_1').state === 'CONSTRUCTING', '建成当轮不可射（C4.3）');
+    /* T2：READY → 有目标才发射；无目标时 strike 空走廊但记账 */
+    F2.beginPhase('D', 'chk');
+    if (F2.state().phase === 'D') F2.beginPhase('A', 'chk');
+    F2.beginPhase('B', 'chk'); F2.beginPhase('C', 'chk');
+    var xbow = WORLD.facility('bed_crossbow_1');
+    chk('setup_ready_t2', xbow.state === 'READY' || xbow.state === 'RELOADING', 'T2 state=' + xbow.state);
+    /* 装填推导：canFireAt 纯函数（发射 t → t+1 装 → t+2 就绪） */
+    var f0 = { lastFiredTurn: 2, state: 'READY' };
+    chk('reload_derivation', !C4.canFireAt(f0, 2) && !C4.canFireAt(f0, 3) && C4.canFireAt(f0, 4), 't2拒/t3拒(跳过下一轮)/t4就绪');
+    /* 架设推导：createdTurn=1, setupTurns=1 → t1 不可、t2 可 */
+    var f1 = { createdTurn: 1, lastFiredTurn: null };
+    chk('setup_derivation', !C4.setupReadyAt(f1, 1) && C4.setupReadyAt(f1, 2), '当轮不可射/次轮就绪');
+    /* 礌石 canDrop：NO_LADDER（坡道不可投放 C3-E11）*/
+    var slopeDrop = C4.canDrop('bed_crossbow_1', 'sl_L1_1');
+    chk('drop_no_ladder', !slopeDrop.ok && slopeDrop.reason === 'NO_LADDER', JSON.stringify(slopeDrop));
+    /* 礌石建造（A 相位）→ ARMED 当轮可投；人力约束 NO_CREW 可构造 */
+    F2.beginPhase('D', 'chk');
+    if (F2.state().phase === 'D') F2.beginPhase('A', 'chk');
+    var okr = C7.exec({ type: 'BUILD_FACILITY', cellId: '5_1_1', facilityKind: 'rollingStock' });
+    var rs = WORLD.facility(okr.facilityId);
+    chk('stock_armed', okr.ok && rs.state === 'ARMED', 'state=' + (rs && rs.state));
+    /* C 相位窗口外 drop 拒绝 */
+    var wd = C4.drop(rs.id, 'sl_L1_1');
+    chk('drop_window_gate', !wd.ok && wd.reason === 'ILLEGAL_WINDOW' && !wd.consumed, JSON.stringify(wd));
+    /* 架梯造 NO_CREW/OUT_OF_REACH 场景：在远处架梯（11_0_0→顶格 z=0 无守方邻接）*/
+    F2.beginPhase('B', 'chk'); F2.beginPhase('C', 'chk');
+    F1.addConnector({ id: 'ld_chk', from: '10_0_0', to: '10_0_1', connKind: 'LADDER', orient: 'FRONTAL',
+      accessPolicy: 'BOTH', occupancy: { units: [] }, status: 'ACTIVE',
+      lifetime: { createdTurn: F2.state().turn, currentHp: TABLES.terrain.ladderHp } });
+    var nc = C4.canDrop(rs.id, 'ld_chk');
+    chk('drop_out_of_reach', !nc.ok && nc.reason === 'OUT_OF_REACH', JSON.stringify(nc));
+    /* NO_CREW：垛口 10_0_1 邻域(马道 10_1_1/垛口 9_0_1/11_0_1)无存活守方 */
+    var near10 = ['10_1_1', '9_0_1', '11_0_1', '10_0_1'];
+    var movedAway = true;
+    for (var i = 0; i < near10.length; i++) { var occ = F1.occupancyOf(near10[i]); for (var k = occ.units.length - 1; k >= 0; k--) { if (WORLD.factionOf(occ.units[k]) === 'DEFENDER') { var uu = WORLD.unit(occ.units[k]); if (uu) { F1.moveUnit(uu.uid, '6_0_1'); uu.cellId = '6_0_1'; } } } }
+    var nc2 = C4.canDrop(rs.id, 'ld_chk');
+    chk('drop_no_crew_or_success', !nc2.ok && nc2.reason === 'NO_CREW' || nc2.ok, JSON.stringify(nc2));
+    chk('c4_zero_f4_nondrop', F4.cursor() >= cur0, 'F4 单流纪律（drop 结算消费主流）');
+    r.pass = r.checks.every(function (c) { return c.pass; });
+    resetBattle(true);
+    return r;
+  }
+  /* N5. D 相位时序收口：D② 经济入账先于 D③ 援军；终局报告一次性冻结 */
+  function dPhaseCheck() {
+    WORLD.init(TABLES.f4Seed);
+    var r = { checks: [], pass: true };
+    function chk(name, cond, detail) { r.checks.push({ name: name, pass: !!cond, detail: detail || '' }); if (!cond) r.pass = false; }
+    var order = [];
+    F2.bus.on('income_settled', function () { order.push('d2'); });
+    F2.bus.on('reinforce_arrived', function () { order.push('d3'); });
+    /* 注入援军条目（机制全量在位；MVP L1 表为空 → 运行时注入验证 D③ 顺延链） */
+    F2.beginPhase('A', 'chk'); F2.beginPhase('B', 'chk'); F2.beginPhase('C', 'chk'); F2.beginPhase('D', 'chk');
+    var dbe = F2.state().dbe;
+    dbe.pendingReinforcements.push({ entryId: 'chk_r1', dueTurn: 1, templateId: 'garrison_squad', dropZoneRef: 'dz_wall', source: 'C6_REINFORCE' });
+    var d4 = F2.runPhaseD();
+    chk('d2_before_d3', order.indexOf('d2') >= 0 && order.indexOf('d3') > order.indexOf('d2'), order.join('→'));
+    chk('reinforce_arrived', dbe.pendingReinforcements.length === 0, '顺延队列已清空');
+    chk('reinforce_free', C6.treasury() > 0, '援军免费（C6-H）· treasury=' + C6.treasury());
+    /* 终局报告：finalizeReport 一次性 */
+    var f1 = C6.finalizeReport('WIN', 'WAVES_CLEARED');
+    var f2 = C6.finalizeReport('LOSE', 'BEACON_FALLEN');
+    chk('report_once', f1.ok && !f2.ok && f2.reason === 'ALREADY_FINALIZED', '二次调用拒绝（BE-8）');
+    chk('report_stats', f1.ok && f1.report.stats.farmTotal >= TABLES.economy.income.farmBasePerTurn, 'farmTotal=' + (f1.ok ? f1.report.stats.farmTotal : 'n/a'));
+    r.pass = r.checks.every(function (c) { return c.pass; });
+    resetBattle(true);
+    return r;
+  }
+  window.VS4Selftest = {
+    boot: function () { return { ok: true, cells: cellList.length, connectors: F1.allConnectors().length, seed: TABLES.f4Seed }; },
+    determinism: determinismCheck,
+    hitRate: hitRateCheck,
+    be2: be2Check,
+    aiTiming: aiTimingCheck,
+    economy: economyCheck,
+    loot: lootCheck,
+    c7: c7Check,
+    c4: c4Check,
+    dPhase: dPhaseCheck,
+    vs4all: function () {
+      var e = economyCheck(), l = lootCheck(), c7 = c7Check(), c4 = c4Check(), d = dPhaseCheck();
+      return { pass: e.pass && l.pass && c7.pass && c4.pass && d.pass, economy: e, loot: l, c7: c7, c4: c4, dPhase: d };
+    },
+    metrics: function () { return { be2: be2Check(6), hitRate: hitRateCheck(2000), aiTiming: aiTimingCheck(), determinism: determinismCheck(10) }; },
+    smoke: function () {
+      resetBattle(true);
+      var end = playThrough(true, 0, 40);
+      var phase = fsm().phase, turns = F2.state().turn;   // 终局态先取（resetBattle 会重置 F2）
+      resetBattle(true);
+      return { ok: end === 'END_WIN' || end === 'END_LOSE', end: end, phase: phase, turns: turns };
+    }
+  };
+
   /* --- 相机按钮 + 启动 --- */
   var btnC0 = $('cam-0'), btnC1 = $('cam-1'), btnC2 = $('cam-2');
   btnC0.onclick = function () { setCamTier(0); };
@@ -2084,9 +2823,9 @@ function boot() {
   setCamTier(0);
   resetBattle();
   refreshHud();
-  log('VS-3 战斗核心就绪：L1 教学骨架 W=12 · ' + cellList.length + ' 格 · F2 七态 FSM · F4 种子 ' + TABLES.f4Seed + ' · three r158', 'ok');
-  log('已实装：① C1 移动（MP×AP/攀爬 2MP/board-unboard/攻击锁足/E2 坠落） ② C5 结算（命中骰单流/走廊齐射/近战/骑射/礌石五步） ③ C10 托管 ④ C8 匈奴 AI', 'ok');
-  log('演示：①「演示推进」逐相位走 · ②「演示一整局」真实战斗 · ③「跳到判负」看中断链 · ④ 六个诊断按钮（压测/RNG/L1&A*/坠落链/VS-3 指标/重放确定性）', '');
+  log('VS-4 建设经济+器械+D结算就绪：L1 教学骨架 W=12 · ' + cellList.length + ' 格 · F2 七态 FSM · F4 种子 ' + TABLES.f4Seed + ' · three r158', 'ok');
+  log('已实装：① C6 经济（quote/charge 双拒绝态/缴获双段式/D② 固定子序/D③ 援军免费） ② C7 五闸六指令（下单即支付单事务） ③ C4 齐射 facility_volley（装填/架设回合戳推导）+ 礌石自由指令 ④ D④ 判定 + 终局报告冻结；VS-3 战斗核心全保留', 'ok');
+  log('演示：①「演示推进」逐相位走 · ②「演示一整局」真实战斗 · ③「跳到判负」看中断链 · ④ 诊断按钮（压测/RNG/L1&A*/坠落链/VS-3 指标/重放确定性/VS-4 经济/C7 五闸/C4 节拍/全量自检）', '');
   tick();
 }
 

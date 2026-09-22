@@ -1,0 +1,63 @@
+== VS-4 建设经济+器械+D结算 · 逻辑层无头测试 ==
+
+[回归·C1 移动（MP×AP / 攀爬原子 / E2）]
+  PASS  回归C1.1 reachable 预算剪枝（MP=3 内可达集，超出格不出现）  —— MP=3 → 恰好 3 格深（Dijkstra 泛洪 + 预算剪枝 C1.4）
+  PASS  回归C1.2 平移消耗 MP=plains(1)/格（MoveReport.mpSpent 对账）  —— 2 格平移 → mpSpent=2 · mp 3→1
+  PASS  回归C1.3 攀爬原子 2MP 一口价（board+move+unboard 单事务）  —— 跨层一格 → 恰好扣 climb=2（不分方向一口价）· 落顶格 · occupancy 已清
+  PASS  回归C1.4 BLOCKED_TOP：顶满 → 留梯排队（ON_CONNECTOR，非失败）  —— 顶满 → BLOCKED_TOP + occupancy 在册 + 逻辑位置保持 from（INV2）· MP 已扣 climb
+  PASS  回归C1.5 弃梯拒绝：from 格满（C1-E4 终裁 A 案）  —— from 满 → 拒绝弃梯、留梯保持暴露（INV1 无豁免）· occupancy 仍在册
+  PASS  回归C1.6 E2 坠落链：梯毁 → 落位 + fallDamage=10 恒定不过骰（零 F4 消费）  —— from 空 → 落回 from · HP 60→50（表驱动 fallDamage）· 游标零消耗
+
+[回归·C5 攻击结算（HIT_ROLL 单流 / 修正链 / 目标集）]
+  PASS  回归C5.1 床弩走廊：同层轴向近→远（多目标距离序）  —— d=2 先于 d=4（C5.7 近→远，逐目标独立过骰）
+  PASS  回归C5.2 高度修正=攻方视角（床弩 h1 俯射 h0 → +0.05·ranged 键）  —— heightModPerLevel.ranged=0.05 · 与 VS-1 §5.3/§6.4 实测同号（仰攻为负）
+  PASS  回归C5.3 近战对设施 ×vsFacility(0.5)（命中时伤害=12×0.5=6）  —— 命中样本 dmg=6（vsFacility 键）· 每次过骰消费 F4 主流
+  PASS  回归C5.4 骑射命中面：0.75 −0.05(仰攻ranged) −0.15(垛口掩体) −0.05(isHitMod) = 0.50 ±3σ  —— 期望 p=0.50（掩体=PARAPET 键）· 3σ=0.067 · 逐次独立 HIT_ROLL
+  PASS  回归C5.5 烽燧目标链：攻方邻接可打、命中扣烽燧 HP（beacon:true 形状回归）  —— meleeTargets 含 {type:beacon,beacon:true} · 命中后 WORLD.beaconHp 下降（判负链通）
+  PASS  回归C5.6 命中过骰唯一入口：F4 单流游标=消费数（无独立 RNG）  —— 每目标恰一次 HIT_ROLL · rand("HIT_ROLL") 为唯一命中骰入口
+
+[回归·C10 托管（评分框架 / 零 F4 / 槽路由）]
+  PASS  回归C10.1 STAY 显式候选 Score=standFast(45)（待命合法性 C10.8）  —— 无合格候选时待命合法（不强制乱动）· standFast=45
+  PASS  回归C10.2 托管决策零 F4 消费（C10.6 确定性纪律）  —— C10 评分 + C8 计划执行（无命中场景）游标不动——决策面零 RNG
+  PASS  回归C10.3 槽路由：AUTO 即时产出指令 / MANUAL 挂起（契约 1）  —— UNIT 级 AUTO/MANUAL 路由 · MANUAL 零指令收槽
+
+[回归·C8 匈奴 AI（纯函数 / BE-2 / 预算）]
+  PASS  回归C8.1 generatePlans 纯函数：同输入两次调用计划逐字节一致（零 RNG）  —— 同世界态 → 同计划（C8.4 确定性）· 7 攻方全计划
+  PASS  回归C8.2 BE-2 集中度：MAIN_ASSAULT > FEINT（Herfindahl 目标分布）  —— dispersionMul 1.0 vs 2.0 方向性成立（破口集中 vs 多点拉扯）
+  PASS  回归C8.3 单轮计划耗时 ≤ planBudgetMs(10)（BE-5 预算）  —— 20 轮最差值 ≤ 10ms
+  PASS  回归C8.4 架梯 E1：canBoardLadder 单位原位架梯（表驱动，零兵种名）  —— GROUND 上格=PARAPET → 架梯成功 · AP −1
+
+[回归·E2E 终局收敛（smoke 判据）]
+  PASS  回归E2E.1 全链路 40 回合内必落 END_WIN|END_LOSE，全程零 illegal_transition  —— 战局收敛到唯一点 D④ · 中断场景不卡死（C8 BE-6）
+  PASS  回归E2E.2 F4 重放确定性：同种子两局逻辑快照逐字节一致  —— 12 回合逐回合快照（单位 HP/位置 + 烽燧 + 游标）全等（F4-E2/BE-1）
+
+[VS-4·C6 经济（D② 固定子序 / 幂等 / 双拒绝态 / 原子扣费零 F4）]
+  PASS  VS4-E1 D② 固定子序：farm=farmBasePerTurn(20) ∧ supply=supplyBasePerTurn(20) ∧ loot=0 ∧ 余额对账  —— farm=20 supply=20 · turnLastSettled 锚推进 · D② 游标零消耗
+  PASS  VS4-E2 D② 幂等：同回合重入 IDEMPOTENT_REJECT 拒绝（C6.5）  —— turn<=turnLastSettled 拒绝 · treasury 只入账一次
+  PASS  VS4-E3 charge 双拒绝态：非 A 窗口 ILLEGAL_WINDOW / 不可购买键 INSUFFICIENT / 失败余额零变化  —— INV-C6-3 窗口权威=TurnQuery phase=A · 不可购买键收敛 INSUFFICIENT（加载期校验兜底）
+  PASS  VS4-E4 charge 原子扣费：成功 charged=表价 ∧ spentTotal 累计 ∧ 余额恰减  —— 下单即支付（C6.1/C6.4）· battleTotals 对账链通
+
+[VS-4·缴获双段式（登记 append-only / D② 入账 / 守方零登记）]
+  PASS  VS4-L1 缴获双段式：攻方阵亡登记 ladderInfantry=30（余额不动）→ D② 汇总入账+清空 / 守方阵亡零登记  —— C 相位 killed 流水登记（C6 §2.4）→ D② farm+supply+loot 一次入账 · 流水清空（INV-C6-2）· 登记零 F4
+
+[VS-4·C7 五闸六指令（单事务：下单即支付+立即落地）]
+  PASS  VS4-C7.1 窗口闸+白名单闸+设施互斥闸+facing 闸（四预检先于资金闸，拒绝零扣费）  —— 五闸序：窗口→寻址→世界（B1/B3/B4）全拒绝且钱包零污染（C7 §2.7 零半执行）
+  PASS  VS4-C7.2 建造成功：支付 bedCrossbow=100 ∧ CONSTRUCTING（架设推导）∧ createdTurn 写入 ∧ 指令流水在册  —— 资金闸（C6 charge 终检）→ 落地闸（createdTurn=t 消费 C4.3）· orderLog 流水（C7 §3.4）
+  PASS  VS4-C7.3 部署：WRONG_FACTION/CELL_FULL 拒绝 + 成功扣费 deploy=50 + 两套账同格合法  —— 闸序 D1 白名单→D2 容量→D3 层位→D4 阵营 · 设施账与单位账独立（C7 §2.4）· 容量=GRID_CAPACITY
+  PASS  VS4-C7.4 重置：零费位移 + SAME_CELL + OFFBOARD 哨兵 + 再登场零费（Δtreasury=0）  —— C7.8 已购资产位移/撤回/再登场零费 · OFFBOARD=DEPLOYED∧未上场组合态（X-1）· OFFBOARD→F1.placeUnit
+  PASS  VS4-C7.5 修理夹取：Δ′=min(Δ,maxHp−hp) 按缺口扣费 + BAD_DELTA 拒绝 + 满血 NO_DAMAGE + 拆除零退款  —— C7.5 夹取防多扣（C6-E8 防逆向刷钱同源）· C7.7 零退款=沉没成本 · 拆后格释放
+  PASS  VS4-C7.6 修墙封闭恒拒绝 + 破产=禁止下单（INSUFFICIENT）+ C7 全程零 F4  —— W-1 未落地整体封闭（C7-E8）· 排水至 <60 仍恒拒 · 下单校验零 RNG（资金闸只对账）
+
+[VS-4·C4 器械节拍（齐射 volleyId / 绝对回合戳推导 / 礌石自由指令）]
+  PASS  VS4-R1 齐射：volleyId=`1_V` ∧ 空载照发 results=[] ∧ 同回合重复进窗口 no-op（E5 去重）∧ 锚点自动挂 phase_enter C  —— N2 配对性（空载荷照发）· volleyId 一致性防线（C4-E5）· 锚点在 phase_enter C 处理期内
+  PASS  VS4-R2 架设推导（纯函数）：createdTurn=1, setupTurns=1 → t1 不可射 t2 可射；建成当轮 CONSTRUCTING  —— setupTurns=1（C4 §3.4 GDD 结构定值）· 零自有状态零计时器（K3）
+  PASS  VS4-R3 装填推导：发射 t → 同轮去重（E5）→ t+1 恢复可射；齐射后 lastFiredTurn=t 写入  —— reloadTurns=1 → 装填占用发射后 1 轮间隔，t3 恢复可射（C4.2 原式 + E5 同回合去重）· 绝对回合戳非递减计数器
+  PASS  VS4-R4 礌石 canDrop 拒绝面：NO_LADDER（坡道）+ OUT_OF_REACH（远梯）+ 窗口外 drop 恒拒且不消耗  —— C3.5 四拒绝前二 + C3-E14 窗口闸 · 校验先行拒绝不消耗（C3-E8）
+
+[VS-4·D 相位收口（D② 先于 D③ / 援军顺延零丢失 / 终局报告一次性冻结）]
+  PASS  VS4-D1 D② 经济入账先于 D③ 援军（固定六步序 D①→D⑥）∧ 援军免费（treasury 不减）  —— F2 §2.2-D 固定序 · 注入条目走运行时顺延链（MVP L1 时刻表空表挂账 VS-7）
+  PASS  VS4-D2 终局报告一次性冻结：WIN 先冻结 → LOSE 二次调用 ALREADY_FINALIZED 拒绝 ∧ stats 对账  —— BE-8 一次性（D④ 判定分支先 finalize 再切终态）· BattleEndReport 冻结含经济统计
+  PASS  VS4-D3 全局重放确定性扩展：带建设指令的两局逐回合快照逐字节一致（C6+C7 零 F4 消费链验证）  —— 建设+排水+重置全链路双局一致（A 相位指令面零 RNG → 指令序一致 ⇒ 终态一致）
+  PASS  VS4-D4 E2E 扩展：注入建设后全链路 40 回合内仍必收敛终局 ∧ 零 illegal_transition ∧ 余额恒 ≥0  —— 经济注入不破坏终局收敛（可玩性底线）· 破产保护 INV-C6-1
+
+== 结果：40 PASS / 0 FAIL（21 回归 + 19 VS-4 新增）==
