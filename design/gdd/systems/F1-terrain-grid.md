@@ -1,6 +1,6 @@
 # F1 立体地形与网格系统 · GDD
 
-> **状态**：v1.4.3-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #1
+> **状态**：v1.4.4（2026-09-22，F3 合流勘误批：A1 budgetRef 删改＋BeaconDef 外置注记＋A5 exposedMod 宿主注记，主理人代落）｜ GW-P2-002 ｜ GDD 撰写序列 #1
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/game-concept-planA-turnbased.md`（决策①直接立体战棋）｜ `design/systems-breakdown.md` §5（分层 2D 网格 MVS）＋ §5.4（残余风险表）
 > **范围红线**：本文只裁 F1——格子模型/占位容量/连接器图论/关卡数据结构/对外接口契约。**不写** C1 寻路算法选型（序列 #2）、不写任何渲染实现（P1）、不写器械结算（C5/C4）。
@@ -223,7 +223,7 @@ interface LevelMap {
   depth: 3;                                // MVP 恒 3（z=0..2）；留字段防硬编码
   cells: Cell[];                           // 由 §9.1 生成器生成
   connectors: Connector[];                 // 静态坡道（LADDER 不在此，运行期生成）
-  beacon: BeaconDef;                       // 烽燧：{cellId(必然 h=2), durability, ...}
+  beacon: BeaconDef;                       // 烽燧：{cellId(必然 h=2), durability, ...}（durability 经 durabilityRef 外置 beacon.json——F3 v1.0.1 R-7，LevelMap 零数值字面量）
   deployZones: DeployZone[];               // 部署区（C7 消费）
   enemySpawns: EnemySpawnDef[];            // 敌方出生端配置（C9 消费）
   terrainRules: TerrainRules;              // §4.5 参数包（F3 表挂载点，本身不含数值基准）
@@ -334,7 +334,7 @@ interface TerrainQuery {
 | `moveCost plains` | 地面平移消耗 | 1 | F3+C1 |
 | `moveCost climb` | 连接器攀爬段消耗 | 2 | F3+C1 |
 | `moveCost gate` | 门洞格消耗 | 2 | F3+C1 |
-| `exposedMod ladder` | 梯上暴露态修正 | 见 C5 表 | F3+C5 |
+| `exposedMod ladder` | 梯上暴露态修正 | 见 C5 表（值宿主 combat.json，C5 结构权威——F3 v1.0.1 R-5 单宿主裁定，terrain-rules.json 不收此键） | F3+C5 |
 | `ladderHp` | 云梯耐久 | 待 C2/C5 GDD 裁定 | F3 |
 | `stackLimit` | 堆叠上限 | 4 | F3 |
 
@@ -515,7 +515,7 @@ interface TerrainQuery {
   ],
   "beacon": { "cellId": "13_1_h2", "durabilityRef": "beacon.json" },
   "deployZones": [
-    { "id": "dz_wall", "cells": ["6_1_h1", "7_1_h1", "8_1_h1"], "budgetRef": "l1-economy.json" },
+    { "id": "dz_wall", "cells": ["6_1_h1", "7_1_h1", "8_1_h1"] },   // budgetRef 已删（F3 v1.0.1 R-1：单文件 economy.json perLevel 段胜出，per-level 文件形废弃；Alpha 启用分区预算时指向 economy.json Alpha 分区段）
     { "id": "dz_reserve", "cells": ["4_2_h0", "5_2_h0", "6_2_h0"] }
   ],
   "enemySpawns": [
@@ -638,3 +638,4 @@ L1 固定布点：1 条 AXIAL 坡道（教学「跨层移动」）→ 1 架匈�
 | v1.4.1-draft | 2026-09-21 | **工程复核采纳批次（GW-P2-003 前最后修订，主理人授权直接落盘）**：①§3.8 写白名单 6→8——增补 `boardConnector`/`unboardConnector` 攀爬登记双 mutation（技术条目#1，INV2/INV6 执行入口缺口；含 E2 毁梯链事务序附注：destroy 原子清 occupancy→落位 from/顺延/OFFBOARD 兜底，落位失败不回滚 destroy）；②removeUnit 显式覆盖 ON_CONNECTOR 态（击杀链同事务清 occupancy，三链路归一：主动弃=unboard/击杀=removeUnit/梯毁=destroyConnector）；③INV2 补执行入口注记；④OQ-1 GATE 建模显式销账（终裁=特殊静态 Connector，归口 C1）；⑤OQ-3 冲车占格销账（随 C2 v1.1.0 footprint NONE 裁定，E12 口径随之收敛）；⑥tie-break 配方唯一定义处归 C1 §2.6-2、F1 侧措辞弱化（spike 展开序不升格为跨文档规格）；⑦性能数字改标「spike 演示值」，规格承诺仅保留 O(1)/O(N≤400) 两条。同步：TL;DR-F 8 mutation、§3.6 occupancy 读写行、§11.1 工程复核小项落账节 |
 | v1.4.2-draft | 2026-09-21 | **GW-P2-003 门终裁执行（A 案）**：§3.8 `unboardConnector` 主动弃梯触发源注记按 C1-E4 终裁收敛——from 格有空槽方可弃梯（校验含 from 格 canPlace，INV1 无豁免），满则拒绝、留梯保持暴露；§11.2 增 OQ-8 登记措辞统一方案落点 |
 | v1.4.3-draft | 2026-09-21 | **GW-P2-003 门终裁执行（主理人合流批）**：①OQ-3 销账行补半句澄清（003 纪要统一口径：冲车「不进 C1」=不进 C1 寻路、移动语义归 C2 实体契约、锚点格占 1 槽、非完全不占用——消解 M-2 提出的字面歧义）；②OQ-7 多连接器细则销账（M-5 采纳：occupancy 独立 ≤1＋登顶按速度序零新机制，与 C1 v1.0.5 OQ-5 同步）；③OQ-8 OQ-5 方案已批，改「已裁定」态；④header 修正（v1.4.2 内容落盘时 header 滞留 v1.4.1，一并收敛）；⑤§2.5.3 部署物措辞（OQ-5 三层定版，本批落实） |
+| v1.4.4 | 2026-09-22 | **F3 合流勘误批（GW-P2-015，主理人代落）**：①A1（F3 R-1）——§9.1 LevelMap 示例 deployZones 删 `budgetRef: "l1-economy.json"` 行（单文件 economy.json perLevel 段胜出，per-level 文件形废弃；Alpha 启用分区预算时指向 economy.json Alpha 分区段），C7 裁定 G 背书；②R-7——BeaconDef 行注记「durability 经 durabilityRef 外置 beacon.json，LevelMap 零数值字面量」；③A5（F3 R-5）——§4.5 `exposedMod ladder` 行注记「值宿主 combat.json（C5 结构权威），terrain-rules.json 不收此键」。零结构/行为改动，全部为示例与注记级精化 |

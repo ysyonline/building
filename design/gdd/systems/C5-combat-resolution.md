@@ -1,6 +1,6 @@
 # C5 攻防结算系统 · GDD
 
-> **状态**：v1.2-draft（2026-09-21）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
+> **状态**：v1.2.1（2026-09-22，F3 合流勘误批 A4：键清单规范键统一——`crossbow.damage`→`weapons.bedCrossbow.damage`，`fallDamage`/`dropDamage` 补全路径限定（F3 v1.0.1 R-4），三处措辞零结构改动，主理人代落）｜ GW-P2-005 ｜ GDD 撰写序列 #5b
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/C2-units.md` v1.1.1（MP×AP 双资源/mpZeroOnAttack 锁足/squadHP 池/存活原语 isAlive·aliveDefendersIn·unitAt）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.2（俯射弹道走廊提案 §2.2/毁梯链 C3.6/canDrop 曼哈顿+轴向度量 C3.5）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（高度层 h∈{0,1,2}/heightDiff/连接器 occupancy/E2 坠落位移链/destroyConnector）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（BLOCKED_TOP 留梯排队/攀爬原子时序/EXPOSED 暴露态）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.1（E10 伤害仅 C 相位/beacon 断言/D④ 检查点）｜ `design/spikes/graybox-f1-report.md` §6（R2 性能回证：网格步进 0.28μs/发 vs 真射线 115μs/发）｜ 概念稿 §5 战斗公式草案＋克制三原则 ｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0（骑射手行为契约＝L0 机动骚扰/规避床弩射界/消费走廊掩体口径，v1.2 联裁其射击模型）
 > **范围红线**：本文只裁 C5——命中/伤害结算流程、克制系数与高度修正的消费语义、床弩穿透弹道的目标集语义（R2 终裁）、礌石毁梯结算序、坠落/砸落/坠落暴露三类伤害入口、梯上受击面、结算原子性与确定性。**不写**攻击资格判定（C2 §2.4.1）、目标选择策略（C3 targetPriority/C8 AI）、行动经济（C2）、位移执行（F1/C1）、相位时序（F2）、托管决策（C10）、数值平衡定值（F3 表宿主）。
@@ -203,9 +203,9 @@ interface StrikeReport {
 | `heightMod per level` | 每层高度差修正 | combat.json | ±0.10 |
 | `coverMod parapet` | 垛口掩体减伤 | combat.json | −0.15 |
 | `exposedMod ladder` | 梯上暴露增伤 | combat.json | +0.25 |
-| `fallDamage` | 坠落伤害基准（E2 自由落体分量） | weapons.json | 待灰盒 |
-| `dropDamage` | 砸落伤害基准（礌石动能分量） | weapons.json | 待灰盒 |
-| `crossbow.damage` | 床弩单发伤害 | weapons.json | 待灰盒 |
+| `weapons.fallDamage` | 坠落伤害基准（E2 自由落体分量；规范键全路径注记，F3 v1.0.1 R-4 批） | weapons.json | 待灰盒 |
+| `weapons.rollingStock.dropDamage` | 砸落伤害基准（礌石动能分量；规范键全路径注记，F3 v1.0.1 R-4 批） | weapons.json | 待灰盒 |
+| `weapons.bedCrossbow.damage` | 床弩单发伤害（F3 v1.0.1 R-4 规范键，原简写 `crossbow.damage` 废止——`crossbow` 有歧义：骑射手亦持弓） | weapons.json | 待灰盒 |
 | `horseArcher.range` | 骑射走廊射程（格）——C5.10（OQ-2 联裁键位） | weapons.json | 待灰盒（初值建议 < `bedCrossbow.range`） |
 | `meleeMod vs facility` | 近战对设施伤害系数 | weapons.json | 待灰盒 |
 | `squadHpPowerCurve` | 残队战力折扣曲线（C2 OQ-3 承接） | combat.json | 线性 hp 比例 |
@@ -428,7 +428,7 @@ interface ResolutionQuery {
 
 | # | 问题 | 影响方 | 建议关闭时点 |
 |---|---|---|---|
-| OQ-1 | `ladderHp`/`fallDamage`/`dropDamage`/`crossbow.damage` 等伤害基准数值定值（入口语义已全部闭合，纯数值） | C2/C3/平衡轮 | 灰盒可玩性轮（§8.4 统一校准） |
+| OQ-1 | `ladderHp`/`weapons.fallDamage`/`weapons.rollingStock.dropDamage`/`weapons.bedCrossbow.damage`（v1.2.1 规范键）等伤害基准数值定值（入口语义已全部闭合，纯数值） | C2/C3/平衡轮 | 灰盒可玩性轮（§8.4 统一校准） |
 | OQ-2 | ~~骑射手远程射击模型（射程键/是否吃高度修正/是否可打梯上单位）~~ | ~~C5/C8~~ | **已关闭（C5 v1.2，GW-P2-008 联裁，主裁=文策渊）**：①射程=`horseArcher.range`，与床弩走廊同构（仰射=h=0 发射的轴向格序列，C5.10）；②吃高度修正，按 §2.4 既有符号约定（低打高惩罚），零新键、合成结构零改动；③梯上单位同权入命中集（逻辑位置=梯底格，吃 exposedMod ladder）。数值（range/独立命中基准）留灰盒（§8.4），语义三问全部关闭；C8 消费面确认归 -2-2 |
 | OQ-3 | ~~`facility_volley` 事件名与齐射锚点时点~~ **已关闭（C4 v1.0 终裁，C5 v1.1 销账）**：锚点=`combat_phase_started` 处理期内、C① 重置与序快照前的同步结算段；C3 OQ-3「攻方行动段前」字面满足，备选「速度序先动」否决（跨系统耦合不值）；C4.4 与 C5.7 结算序同源零冲突，不触发结构回填 | ~~C4~~ 已归档 | — |
 | OQ-4 | `horseArcher` 与走廊目标的命中优先交互（骑射能否被垛口掩体减免——掩体只对墙顶线内目标成立？） | C5/平衡轮 | ✅ 已销账（2026-09-21，C8 §9.3 消费面核验）：「格在谁脚下谁吃」在 C8 逐格 expectedMods 评分消费面自洽，无跨层追溯歧义 |
@@ -443,3 +443,4 @@ interface ResolutionQuery {
 | v1.1-draft | 2026-09-21 | **C4 落盘联动回填（与 C4 §9.3 案一致）**：①§6.2 齐射锚点行 ⚠→✅（锚点终裁引 C4 v1.0：combat_phase_started 处理期内、C① 前的同步结算段；C4.4/C5.7 结算序同源零冲突；CROSSBOW_VOLLEY/facility_volley 命名辨析收录）；②§10 OQ-3 销账（C3 OQ-3 随 C4 关闭）；上游契约面零冲突，无结构改动 |
 | v1.1.1-draft | 2026-09-21 | **C8 走查一销账（design-strategist-2 代执行，主理人授权）**：§10 OQ-4 行补销账注记——「格在谁脚下谁吃」口径经 C8 §9.3 逐格 expectedMods 评分消费面核验自洽、无跨层追溯歧义；对齐状态行加 C8 v1.0 消费确认；OQ-4 转派销账闭环 |
 | v1.2-draft | 2026-09-21 | **OQ-2 骑射手远程射击模型联裁关闭（GW-P2-008，主裁=文策渊，主理人授权）**：新增 §2.2.1——①射程键 `horseArcher.range` 与床弩走廊同构（仰射=h=0 发射的同层轴向格序列，复用 C3.1 原语，无新弹道类型）；②吃高度修正且不从简——按 §2.4 既有符号约定（heightDiff 恒 ≤0=低打高惩罚），「地面机动补偿」否决（机动性已由 MP/射程/掩体够不着承担，双补偿失真），修正合成 C5.3 结构零改动；③梯上单位同权入命中集（逻辑位置=梯底格+exposedMod ladder，防「爬到一半最安全」悖论）；新增公式 C5.10；§3.2 补 horseArcher.range 键行；§8.4 补骑射初值汇总；§10 OQ-2 销账（数值留灰盒，语义三问全闭）；header 上游依据增 C8 v1.0；C8 消费面确认归 -2-2 |
+| v1.2.1 | 2026-09-22 | **F3 合流勘误批 A4（GW-P2-015，F3 R-4 规范键统一，主理人代落）**：§3.2 键清单三行——`crossbow.damage`→`weapons.bedCrossbow.damage`（原简写废止：`crossbow` 有歧义，骑射手亦持弓）；`fallDamage`/`dropDamage` 补规范键全路径注记（`weapons.`/`weapons.rollingStock.`）。三处措辞零结构改动，数值权威仍 F3 灰盒 |

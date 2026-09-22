@@ -1,9 +1,9 @@
 # X2 战役半永久建设继承系统（含附录 A：F5 存档 / 附录 B：X1 战役流程）· GDD
 
-> **状态**：v1.0.2-draft（2026-09-21）｜ GW-P2-012 ｜ GDD 撰写序列 #9（X2+F5+X1 合并批，systems-breakdown 序 #9）；v1.0.1=互审勘误批（c9 主审 PASS + -2-2 次审）；v1.0.2=X3 合流勘误批（A2/A3 回执，主理人代落）
+> **状态**：v1.0.3（2026-09-22，F3/F4 合流回执批）｜ GW-P2-012 ｜ GDD 撰写序列 #9（X2+F5+X1 合并批，systems-breakdown 序 #9）；v1.0.1=互审勘误批（c9 主审 PASS + -2-2 次审）；v1.0.2=X3 合流勘误批（A2/A3 回执，主理人代落）；v1.0.3=F3/F4 合流回执批（A2 键路径五处勘误＋A6 采纳＋F4 销账三件套，主理人代落）
 > **产出**：本文 X2 本体（§1-§11）＋附录 A（F5 存档，自带 A.1-A.8 八节结构）＋附录 B（X1 战役流程，同构）——三系统同批合并成文，职责边界见 §1.1，拆分与否裁定见 §1.1.3
 > **上游依据**：`design/gdd/systems/F2-phase-scheduler.md` v1.0.4（§1.4-F 存档点 S0/S1、§2.5 D④ 胜负判定唯一点、§3.1 TurnState、§3.2 DPhaseLedger.turnEndSnapshots、§5-E9 战役账本休眠条件、§6.2 存档点 F2→F5/终局移交 F2→X1、BE-2 确定性重放）｜ `design/gdd/systems/C6-economy.md` v1.0.2（§2.4 garrisonCasualties 归 BattleEndReport、重募费用键归 X2 裁、§3.1 TreasuryState、§3.3 BattleEndReport v1、OQ-2 treasuryCarryRule）｜ `design/gdd/systems/C2-units.md` v1.1.3（§2.1 X-1 组合态注记 DEPLOYED∧OFFBOARD、§3.1 controlMode、E12 全量序列化、INV-C2-2/3）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§3.1 Facility 实体、§3.3 设施指令面）｜ `design/gdd/systems/C7-build-deploy.md` v1.0.1（§7.2 X2 继承间接注记、六指令模型、W-1 修墙接口需求）｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0.2（§9.1-4 WaveManifest 消费确认，零 X2 依赖）｜ `design/gdd/systems/C9-wave-orchestration.md` v1.0（§2.6 三关骨架、§3.2 WaveRuntimeState）｜ `design/gdd/systems/C10-delegation-control.md` v1.0.1（E5 controlMode 随档恢复、缺字段默认 AUTO+告警）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（§3.3 TerrainRuntime、§7.2 下游表注 X2 继承：静态 LevelMap 逐关不变动态层跨关重建、V1/V4 单烽燧、§10 三关三变量）｜ `design/systems-breakdown.md`（X2/X1/F5 职责行、链 B 硬依赖序、E9 战役层胜负条件裁定、F3/F4 定位）｜ `design/game-concept-planA-turnbased.md` 定稿 v1.0（决策③「战役+半永久建设继承」、MVP 6 周 3 关、胜负=帅帐破/3 烽燧失守）
-> **范围红线**：MVP 只裁 3 关线性战役（教学→标准→高潮）＋MVP 最小可行继承方案（**设施/墙体/粮饷不跨关携带，幸存戍卒名单携带**）；Alpha 扩展一律只列接口占位（设施携带/ treasuryCarryRule C 案/多烽燧战役判定/手动多槽存档/败关撤退继承）；F5 只收口 MVP 单槽自动存档；本文零数值硬编码，全部挂 F3 表（F3 GDD 未落盘，键位先行声明，见 §7.3）
+> **范围红线**：MVP 只裁 3 关线性战役（教学→标准→高潮）＋MVP 最小可行继承方案（**设施/墙体/粮饷不跨关携带，幸存戍卒名单携带**）；Alpha 扩展一律只列接口占位（设施携带/ treasuryCarryRule C 案/多烽燧战役判定/手动多槽存档/败关撤退继承）；F5 只收口 MVP 单槽自动存档；本文零数值硬编码，全部挂 F3 表（F3 v1.0.1 已落盘，规范键 `perLevel.<id>.initialTreasury` 等，见 §7.3）
 > **对齐状态**：消费 F2 v1.0.4 / C6 v1.0.3 / C2 v1.1.3 / C3 v1.0.3 / C7 v1.0.2 / C8 v1.0.2 / C9 v1.0 / C10 v1.0.1 / F1 v1.4.3 契约逐条走查通过（§9.1-§9.8）；下游 X3 v1.0 已签收本文交割物（§9.14，挂点步骤②后＋快照 `x3?` 区段回执）；开放申请位与待回执项均已闭账（§9.9-§9.14）
 
 ---
@@ -34,7 +34,7 @@
 | 系统 | 一句话职责 | **拥有** | **不拥有** |
 |---|---|---|---|
 | **X2 战役半永久建设继承**（主文） | 关与关之间「什么被继承、怎么记账」的**纯规则层** | ①继承对象裁定（§2.1 四项）②BattleEndReport v1.1 追加字段定义权 ③幸存者记账规则与完备性对账式（§2.3/§4 X2.1）④继承结算函数（纯函数，输入 BattleEndReport＋rosterPool，输出新 rosterPool）⑤F3 campaign.* 键位声明 | ①不拥有任何持久物本体——rosterPool 账本归 X1 所有（X2 只定义读写规则），落盘归 F5 执行 ②不做关卡流转与画面（归 X1）③不做存档文档结构与校验（归 F5）④不拥有任何数值（全挂 F3） |
-| **F5 存档系统**（附录 A） | 单关内＋战役层状态的**落盘/读档收口基建** | ①SaveDocument 分部文档结构与 schemaVersion 演化规则 ②存档时机（严格挂 F2 S0/S1 两存档点）③读档校验链 INV-F5-1~4（缺字段告警禁静默降级）④单槽自动存档策略 | ①不裁定继承语义（消费 X2 规则的结果）②不拥有任何分部数据的**定义权**——TurnState 归 F2、TreasuryState 归 C6、WaveRuntimeState 归 C9、TerrainRuntime 归 F1、Unit[] 归 C2、Facility[] 归 C3，F5 只做**引用拼装** ③不做确定性随机本体（归 F4，GDD 未落盘，签名占位） |
+| **F5 存档系统**（附录 A） | 单关内＋战役层状态的**落盘/读档收口基建** | ①SaveDocument 分部文档结构与 schemaVersion 演化规则 ②存档时机（严格挂 F2 S0/S1 两存档点）③读档校验链 INV-F5-1~4（缺字段告警禁静默降级）④单槽自动存档策略 | ①不裁定继承语义（消费 X2 规则的结果）②不拥有任何分部数据的**定义权**——TurnState 归 F2、TreasuryState 归 C6、WaveRuntimeState 归 C9、TerrainRuntime 归 F1、Unit[] 归 C2、Facility[] 归 C3，F5 只做**引用拼装** ③不做确定性随机本体（归 F4，已落盘 v1.0.1——F5 消费其 H 定稿与 f4 分部承载，签名占位已兑现） |
 | **X1 战役流程系统**（附录 B） | 3 关战役的**流转状态机与战役账本** | ①CampaignLedger 账本所有权（currentLevelIndex/results/rosterPool）②关间流转状态机（LEVEL_INIT→BATTLE_END→SUMMARY→INHERIT→…）③结算/胜败画面数据源指定 ④「3 烽燧失守」战役账本休眠条件的**唯一实现宿主位**（MVP 显式休眠，见 B.2.4 ★） | ①不做继承计算（调 X2 纯函数）②不做存档实现（调 F5）③不干涉关内相位机（F2 权威，X1 只消费其 battle_won/lost 终局移交）④不拥有关卡内容（LevelMap 归 F1、波次归 C9、教学脚本归 X3） |
 
 #### 1.1.1 一条铁律：数据所有权三级分离
@@ -114,7 +114,7 @@ systems-breakdown 定义：X2=「关与关之间设施/戍卒状态的继承规�
 
 C6 v1.0.2 OQ-2 留三选一：A 全额结转 / B 关卡固定初值 / C 部分结转＋关卡初值下限（C6 建议方向 C 案）。**本文裁定 B 案**：
 
-- **理由一（曲线保护）**：三关经济按单关封闭调平（C6 farmBase＋F3 逐关参数）。A/C 案引入「上关结余」自由变量后，L1 的省钱打法会溢出到 L2/L3，三关难度曲线（F3 campaign.initialTreasury 逐关卡值）失去独立控制点——MVP 无平衡迭代预算，必须把经济自由度压到最低。
+- **理由一（曲线保护）**：三关经济按单关封闭调平（C6 farmBase＋F3 逐关参数）。A/C 案引入「上关结余」自由变量后，L1 的省钱打法会溢出到 L2/L3，三关难度曲线（F3 `perLevel.<id>.initialTreasury` 逐关卡值）失去独立控制点——MVP 无平衡迭代预算，必须把经济自由度压到最低。
 - **理由二（战役感最小支撑已足）**：决策③的可感载体已由幸存者名单承担（裁定 C）；钱不带不伤「半永久」感知，结算画面照样呈现 treasuryFinal 供玩家复盘。
 - **理由三（实现最简）**：B 案=关初直接读 F3 卡值，零结转逻辑、零对账分支。
 - **与 C6 建议方向相左的显式声明**：C6 OQ-2 建议 C 案，本文否决 C 案、采用 B 案——设计裁量权在 X2（派单明示「MVP 最小可行方案由我裁」），但**此裁定已列申请位（§9.9）请主理人复核**；若主理人维持 C 案，本文 §2.1-D/§3.2/附录 B.3 相应三处改写，接口面不变。
@@ -179,7 +179,7 @@ interface SurvivorEntry {
 
 ## 3. 数据
 
-> X2 本体**零自有持久物**（§1.1 铁律）。本节声明三类东西：X2 纯函数的输入输出结构（已在 §2.2/§3.1 给出）、X1 战役账本结构（X1 所有，X2 读写规则在此挂靠）、F3 键位声明（数值宿主，F3 GDD 未落盘，键位先行）。
+> X2 本体**零自有持久物**（§1.1 铁律）。本节声明三类东西：X2 纯函数的输入输出结构（已在 §2.2/§3.1 给出）、X1 战役账本结构（X1 所有，X2 读写规则在此挂靠）、F3 键位声明（数值宿主，F3 v1.0.1 已收编——§9.12 销账）。
 
 ### 3.1 X2 计算结构（纯函数签名，非持久物）
 
@@ -195,12 +195,12 @@ function settleInheritance(
 
 | 键 | 含义 | MVP/Alpha | 消费方 |
 |---|---|---|---|
-| `campaign.initialTreasury.L1 / L2 / L3` | 三关关初粮饷固定值（裁定 D 卡值） | MVP | X1 关初初始化 / C6 |
-| `campaign.roster.poolCapacity` | rosterPool 容量上限 | Alpha 预留 | X2 §2.3-4 |
-| `campaign.retrain.costPerUnit` | 打折重募单价（复用 C6 charge 通道） | Alpha 预留 | C7/C6 |
-| `campaign.save.slotCount` | 存档槽位数（MVP=1，附录 A.2 裁定 H） | MVP | F5 |
+| `perLevel.L1 / L2 / L3 .initialTreasury` | 三关关初粮饷固定值（裁定 D 卡值；v1.0.3 键路径统一为 C6 §3.5 规范形，F3 R-2 采纳） | MVP | X1 关初初始化 / C6 |
+| `campaign.roster.poolCapacity` | rosterPool 容量上限（economy.json campaign 段，F3 R-2 收编位） | Alpha 预留 | X2 §2.3-4 |
+| `campaign.retrain.costPerUnit` | 打折重募单价（复用 C6 charge 通道；economy.json campaign 段） | Alpha 预留 | C7/C6 |
+| `campaign.save.slotCount` | 存档槽位数（MVP=1，附录 A.2 裁定 H；economy.json campaign 段） | MVP | F5 |
 
-声明纪律：上述键**值**全部留 F3/灰盒，本文零硬编码；F3 GDD（未落盘）撰写时须收编本表，冲突以 F3 平衡评审结论为准（列 §9.12 提示项）。
+声明纪律：上述键**值**全部留 F3/灰盒，本文零硬编码；F3 v1.0.1 已收编本表（§9.12 销账），键路径冲突裁定见 F3 §4.2 R-2——规范键=`perLevel.<id>.initialTreasury`，本文照录。
 
 ### 3.3 X1 战役账本（所有权归 X1，结构在此给全，附录 B.3 详注）
 
@@ -245,7 +245,7 @@ interface CampaignLedger {
 |---|---|---|
 | 结算画面（X1 SUMARY，附录 B.6） | BattleEndReport v1.1 全量 | 四栏：战果统计（v1 stats）/ 阵亡名录（garrisonCasualties）/ **幸存者名录（survivorRoster，含 OFFBOARD 残队标注「预备队生还」）** / 粮饷对账（treasuryFinal） |
 | 下关建设阶段幸存者标识 | rosterPool（经 X1 关初初始化投放到 C2 预备队） | 预备队栏幸存者免费角标＋「上关生还」标签；零费再部署提示（P 消费，角标语义转美术侧） |
-| 关初粮饷显示 | F3 `campaign.initialTreasury.L{n}` | 关初 A 相位粮饷栏直接呈现卡值（裁定 D 可视化） |
+| 关初粮饷显示 | F3 `perLevel.L{n}.initialTreasury`（v1.0.3 键路径统一，F3 R-2） | 关初 A 相位粮饷栏直接呈现卡值（裁定 D 可视化） |
 | 拒存提示 | F5 拒存事件（附录 A.3） | C 相位中段尝试手动存档（Alpha 手动槽）时 toast「战斗进行中，无法记录战况」；MVP 仅自动档，提示挂在暂停菜单占位 |
 
 ---
@@ -262,15 +262,17 @@ interface CampaignLedger {
 | C9 波次编排 | 三关骨架（附录 B.2.1 战役流程的内容输入）；WaveRuntimeState 序列化分部 | v1.0 |
 | C10 托管微操 | E5 controlMode 随档恢复＋缺字段默认 AUTO＋告警（附录 A.4 先例纪律） | v1.0.1 |
 | F1 地形网格 | LevelMap 静态层逐关不变（§2.4 流转地基）；三关三变量（W/GATE/坡道）；TerrainRuntime 序列化分部；V1/V4 单烽燧（裁定 I 依据） | v1.4.3 |
-| F3 数值表 | §3.2 键位收编（GDD 未落盘——systems-breakdown 定位：共享数值层，MVP 起建） | 未落盘 |
-| F4 确定性随机 | 种子＋结算流水哈希（附录 A.5 checksum 基座；GDD 未落盘——systems-breakdown 定位：MVP 最小） | 未落盘 |
+| F3 数值表 | §3.2 键位收编（v1.0.3 状态刷新——F3 v1.0.1 已落盘并完成收编，规范键见 §3.2） | F3 v1.0.1 |
+| F4 确定性随机 | 种子＋结算流水哈希（附录 A.5 checksum 基座；已落盘——H=FNV-1a-64 全宽 hex16、S=规范字节流，F4 v1.0.1 §2.5/§2.6） | F4 v1.0.1 |
 | C8 匈奴 AI | 零 X2/X1/F5 依赖（WaveManifest 为关内消费，战役层不读 AI 内部态）——正确零依赖 | v1.0.2 |
 | 下游：X3 教学引导 | 消费 X1 LEVEL_INIT(L1) 挂点与 F5 存档生命周期（序列 #10 撰写时的输入） | 本文 §9.7 交割 |
 | 下游：P1-P5 表现 | 结算画面/角标/toast 数据面（§6） | 本文 §6 交割 |
 
-### 7.3 F3/F4 未落盘的处理声明
+### 7.3 F3/F4 落盘前的处理声明（历史档，v1.0.3 起两者均已落盘）
 
-F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems-breakdown 序 #8 之后排程，F4 挂 MVP 最小配置）。本文对二者只做**键位声明**（§3.2）与**签名占位**（附录 A.5），不臆造其内部结构；两文落盘后按 §9.12 回执收编。这不构成依赖倒置——systems-breakdown 已锁定 F3=唯一数值宿主、F4=确定性前提的定位，本文消费的是定位不是实现。
+> **v1.0.3 状态刷新**：本节为 F3/F4 落盘前（v1.0.2 时点）的处理声明，历史保留。**F3 v1.0.1 已落盘并完成 §3.2 四键收编（R-2 键路径裁定，§9.12 销账）；F4 v1.0.1 已落盘并兑现签名占位（f4Seed=8 位小写 hex、checksum=FNV-1a-64 全宽 hex16，§9.13 销账）**。两文消费的定位声明不变：systems-breakdown 已锁定 F3=唯一数值宿主、F4=确定性前提，本文消费的是定位不是实现。
+
+F3（数值表）与 F4（确定性随机）两系统 GDD 原排程于本文之后（systems-breakdown 序 #8 之后，F4 挂 MVP 最小配置）。本文对二者只做**键位声明**（§3.2）与**签名占位**（附录 A.5），不臆造其内部结构；两文落盘后按 §9.12/§9.13 回执收编——此回执已于 v1.0.3 批完成。
 
 ---
 
@@ -339,8 +341,8 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 |---|---|---|
 | 9.10 | C6 | ✅ **已回执（C6 v1.0.3，c9 落账）**：①OQ-2 销账（终裁 B 案照录 §2.1-D）②「重募费用键归 X2 裁」销账：MVP 零新键，retrain.* Alpha 预留（§2.1-C3）③BattleEndReport v1.1 追加字段行回填（§2.2） |
 | 9.11 | C7 | ✅ **已回执（C7 v1.0.2，-2-2 落账，主理人核验）**：§7.2 继承间接注记刷新——「设施不携带（每关重建）；幸存戍卒经 rosterPool 承接（X2 v1.0 §2.1，附录 B 流转）」，销本挂账 |
-| 9.12 | F3（落盘时） | 收编 §3.2 四键；`initialTreasury` 三卡值进首轮平衡评审 |
-| 9.13 | F4（落盘时） | 附录 A.5 checksum 签名（结算流水字节序＋哈希算法）对齐；补「F5 为 checksum 消费方」依赖行 |
+| 9.12 | F3 | ✅ **已回执（F3 v1.0.1，GW-P2-015 互审合流批，主理人代落）**：①§3.2 四键全数收编——`initialTreasury` 规范键裁定为 `perLevel.<id>.initialTreasury`（F3 R-2，本文键路径五处已随批勘误）、其余三键入 economy.json campaign 段；②`initialTreasury` 三卡值已入 F3 §9.13 首轮平衡评审清单；③A6 采纳——meta 增可选 `tableFingerprint` 已落附录 A.3 |
+| 9.13 | F4 | ✅ **已回执（F4 v1.0.1，GW-P2-015 互审合流批，主理人代落）**：①A.5 F5.1 占位改定稿引用（H=FNV-1a-64 全宽、S=规范字节流，见 F4 §2.5/§2.6）；②**F5 为 checksum 消费方依赖行**——F5 存档系统｜checksum 计算编排与 INV-F5-3 对拍消费——依赖 F4 的 H 定稿与规范字节流 S；f4 分部承载 cursor/state/log 随档落盘（必选分部，无安全缺省，缺=INV-F5-2 拒载）；③附录 A.3 增 `f4: F4State` 必选分部＋meta 增可选 `tableFingerprint`（A6）＋INV-F5-2 八分部→九分部 |
 | 9.14 | X3（序列 #10） | ✅ **已签收（X3 v1.0 合流，GW-P2-014）**：挂点措辞经 v1.0.2 精化为步骤②后（A2）；快照增补 `x3?: TutorialState` 已落 A.3（A3）；F5 存档生命周期摘要与「不可跳过 S0 存档」约束已入 X3 §9.2 |
 
 ---
@@ -349,7 +351,7 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 
 | # | 问题 | 归属 | 状态 |
 |---|---|---|---|
-| OQ-1 | checksum 哈希算法与 F4 流水字节序未定 | F4 GDD（未落盘） | 开放——附录 A.5 签名占位，F4 落盘对齐后销账（联动 §9.13） |
+| OQ-1 | ~~checksum 哈希算法与 F4 流水字节序未定~~ | ~~F4 GDD（未落盘）~~ | ✅ **已闭（v1.0.3，GW-P2-015 F4 §9.3-2 销账）**：H=FNV-1a-64 全宽 hex16、S=规范字节流（header 14B＋entries 10B/条，定宽小端零浮点），定稿见 F4 v1.0.1 §2.5/§2.6；A.5 F5.1 已照录 |
 | OQ-2 | 幸存者身份可感化：命名/昵称/军衔是否进入 MVP 结算画面 | 表现层＋叙事侧 | 开放——MVP roster 不带身份字段（§2.1-C4），若叙事侧确认 MVP 需要最小命名，追加 `label?` 可空字段（追加式，零破坏）；转美术/叙事侧回执 |
 | OQ-3 | ~~存档槽位：MVP 单槽自动（本文裁定 H）是否足够；是否预留第二槽~~ **已裁（2026-09-21，主理人）：MVP 单槽成立** | — | 已闭——裁定 H 维持；F3 `campaign.save.slotCount` 键保留供 Alpha 多槽扩展 |
 | OQ-4 | 败关重打是否限次/难度自适应 | Alpha | 开放——MVP 无限重打（§2.5），Alpha 再议 |
@@ -365,6 +367,7 @@ F3（数值表）与 F4（确定性随机）两系统 GDD 尚未撰写（systems
 | v1.0.1-draft | 2026-09-21 | **互审勘误批**（c9 主审 PASS + -2-2 次审，主理人合流）：**M-1 相位术语勘误**——建设阶段是 F2 A 相位非 B 相位（F2 v1.0.4 §2.2 权威语义；c9 提示：原文照实现会与 C9 B① 敌军入场时序打架，行为级防错非修饰），六处全改（§1.2-3/§2.1-A 理由三/§2.1-C2/§6 粮饷行/A.2.1 裁定 H 段三处/F5-E4），存档语义本身 c9 已独立验证零一致性风险；L 级三条（L1=B.2.1 波次 4/6/8 加注 ⚠ 随 C9 OQ-1 灰盒标定；L2=A.2.1 封存行措辞精化「仅三关全 WIN 封存」；L3=§2.4 时序图快照加引用符 preLevelSnapshot/B.2.2-③）；裁定回填两项（§9.9-1 C6 OQ-2 终裁维持 B 案已闭、C6 v1.0.3 c9 落账销账；§10 OQ-3 存档槽位 MVP 单槽成立已裁）；待回执状态同步（§9.10 C6 三件已回执 C6 v1.0.3、§9.11 C7 注记刷新在途 -2-2 代落 C7 v1.0.2） |
 | v1.0.1-draft 补 | 2026-09-21 | **勘误批收尾（主理人合流代落）**：次审 L4-L6 三条补齐——L4=§2.1-C2「战斗阶段可照常部署」改「后续回合 A 相位（建设阶段）可照常部署（部署恒 phase='A'）」（消除与 C7 S1 窗口闸的括注矛盾，M-1 同族收口）；L5=附录 A.3 `c7?: CommandLog` 改 `c7?: OrderLogEntry[]`（C7 §3.4 原名，加文档别名注）；L6=附录 A.8 A.4-2 行补 controlMode 归属声明半句（C2 §3.1 实体字段随全量携带）；§9.11 置已回执（C7 v1.0.2 已核验）。至此互审双 PASS 全部意见闭环，X2 无开放修订项 |
 | v1.0.2-draft | 2026-09-21 | **X3 合流勘误批（主理人代落，GW-P2-014 申请位回执）**：①A2 采纳——§9.2-3 交割表挂点措辞「步骤①后」精化为「步骤②后（rosterPool 投放完成）」并置 X3 已签收；对齐本文 B-BE-3/B.4-4 既有措辞（步骤①系交割表单处笔误，非行为语义变更）与 X3 v1.0 §2.2 裁定。②A3 采纳——附录 A.3 SaveDocument 增 `x3?: TutorialState` 可选区段（缺字段走 INV-F5-4 默认 COMPLETED＋告警，对齐 C10-E5 先例；L2/L3 关 S0 恒 undefined）。③§9.14 X3 交割物签收置已闭。A1 驳回备案：X3 §9.11-A1 所称 C9 §2.6 键名冲突经主理人三重 grep 核验不存在（C9 全文无 initialTreasury 引用），零勘误 |
+| v1.0.3 | 2026-09-22 | **F3/F4 合流回执批（主理人代落，GW-P2-015 申请位回执）**：①**A2 采纳（F3 R-2）**——键路径五处勘误统一为 `perLevel.<id>.initialTreasury`（§3.2 键表、§7.3 理由一叙述、§6 关初粮饷显示行、附录 B.6 关初粮饷键列三行）；②**A6 采纳（F3 申请位）**——附录 A.3 meta 增可选 `tableFingerprint`（F3 §2.5 规范化定义：键递增排序规范序列化→UTF-8→FNV-1a-64 hex16；缺字段 E6 退化 schemaVersion 比对＋告警一次，禁空串参与比对）；③**F4 销账三件套（F4 §9.3 回执）**——A.5 F5.1 占位改定稿引用（H=FNV-1a-64 全宽 hex16、S=规范字节流 F4 §2.5/§2.6）、§10 OQ-1 置闭、A.3 增 `f4: F4State` 必选分部＋INV-F5-2 八分部→九分部增补 f4 行＋A.4-4/§7 F4 行/§7.3/§1.1-③ 状态刷新为「F4 v1.0.1 已落盘」；f4Seed/checksum 括注定稿化（类型零改动） |
 
 ---
 ---
@@ -404,9 +407,10 @@ interface SaveDocument {
     schemaVersion: number;            // 单调整数，本文=v1（=1）
     campaignId: string;               // 路由键（X1 CampaignLedger 同源）
     levelId: string;                  // 当前关（F1 LevelMap 载入选择）
-    f4Seed: string;                   // F4 主种子（签名占位，联动 §9.13）
+    f4Seed: string;                   // F4 主种子（v1.0.3 定稿兑现：8 位小写 hex，展开规则 F4 v1.0.1 §2.2/F4.2——签名零改动）
     turn: number;                     // 快照回合数（TurnState.turn 镜像）
-    checksum: string;                 // A.5
+    checksum: string;                 // A.5（v1.0.3 定稿兑现：FNV-1a-64 全宽 16 位小写 hex，F4 v1.0.1 §2.6/F4.4——签名零改动）
+    tableFingerprint?: string;        // 表指纹（F3 v1.0.1 §2.5 规范化定义：canonical JSON→UTF-8→FNV1a64 hex16；可选元数据非表内容，不违 A.2.2-2；缺字段=「指纹未知」→F3 E6 退化 schemaVersion 比对＋告警一次，禁空串参与比对——A6 采纳，GW-P2-015）
     savedAt?: string;                 // 仅元信息，禁入重放
   };
   campaign: CampaignLedger;           // X1 分部（§3.3）
@@ -418,23 +422,24 @@ interface SaveDocument {
   c3: Facility[];                     // C3 v1.0.3 §3.1（含 currentHp / locked* / state）
   c7?: OrderLogEntry[];               // C7 v1.0.1 指令流水（文档别名注：C7 §3.4 原名 OrderLogEntry；可选诊断位；不参与语义恢复，语义已固化于各分部）
   x3?: TutorialState;                 // X3 v1.0 §3.3 教学运行态（X3 v1.0 §9.11-A3 增补；MVP 仅 L1 装载教学，L2/L3 关 S0 存档时恒 undefined；缺字段走 INV-F5-4 默认 COMPLETED＋告警，禁静默降级）
+  f4: F4State;                        // F4 v1.0.1 §3.1 确定性随机态 {cursor, state, log}（v1.0.3 增补，**必选分部**——游标无安全缺省：缺失=INV-F5-2 结构校验**拒载**，不适用 INV-F5-4 宽恕；缺 cursor 默认 0 会在已消费档上静默错位骰序，静默降级最恶劣形态，F4-E4 反例锚点）
 }
 ```
 
-拼装纪律：**分部定义权各归其主**（§1.1），F5 只做引用与拼装；任何分部结构变更→schemaVersion 递增→走 A.4 迁移规则。F4 GDD 未落盘，`f4Seed/checksum` 为**签名占位**（类型可能随 F4 定稿调整，联动 §9.13）。
+拼装纪律：**分部定义权各归其主**（§1.1），F5 只做引用与拼装；任何分部结构变更→schemaVersion 递增→走 A.4 迁移规则。F4 已落盘（v1.0.1，GW-P2-015 互审合流批）：`f4Seed/checksum` 签名占位**已定稿兑现**——f4Seed=8 位小写 hex（F4 §2.2）、checksum=FNV-1a-64 全宽 hex16（F4 §2.6）；`f4` 必选分部随同批增补（F4State 三字段定义见 F4 §3.1）。
 
 ## A.4 机制：读档校验链 INV-F5-1~4
 
 | # | 校验 | 失败处置 |
 |---|---|---|
 | INV-F5-1 | schemaVersion === 当前版本 | 高于当前→**拒载**＋「存档来自更新版本」提示；低于当前→按迁移表逐级升级（MVP 迁移表为空，v1 起） |
-| INV-F5-2 | 八分部齐全＋各分部内部枚举合法（复用上游 INV：C2 INV-C2-2/3、F2 相位枚举、C3 state 枚举…）＋X2.1 对账式复核（rosterPool vs garrisonCasualties vs 存档 c2 存活计数，关内存档时跳过跨关项） | 拒载＋段错误定位告警 |
+| INV-F5-2 | 九分部齐全（v1.0.3 起含 f4——F4 v1.0.1 §3.1 必选分部；缺 f4=游标无安全缺省，**拒载**不适用 INV-F5-4 宽恕）＋各分部内部枚举合法（复用上游 INV：C2 INV-C2-2/3、F2 相位枚举、C3 state 枚举、F4 INV-F4-1 链自洽…）＋X2.1 对账式复核（rosterPool vs garrisonCasualties vs 存档 c2 存活计数，关内存档时跳过跨关项） | 拒载＋段错误定位告警 |
 | INV-F5-3 | checksum 对拍（A.5） | 不匹配→拒载＋「存档校验失败」（**禁止**静默忽略——损坏档继续玩会破坏逐字节重放承诺） |
 | INV-F5-4 | 字段级缺省：旧版档缺可选字段（如 v1.1 前 BattleEndReport 缺 survivorRoster） | **默认值＋告警日志，禁静默降级**（C10-E5 先例：controlMode 缺失→默认 AUTO＋告警；X2-E5 同纪律） |
 
 ## A.5 公式
 
-- `F5.1 ｜ 校验和 ｜ F4 结算流水字节序 S（bytes）、哈希函数 H（占位：算法与截断长度待 F4 GDD 定稿，联动 §9.13）｜ checksum = H(S) ｜ 消费方：INV-F5-3`
+- `F5.1 ｜ 校验和 ｜ S=F4 规范字节流（F4 v1.0.1 §2.5：header 14 B＋entries 10 B/条，定宽小端零浮点）、H=FNV-1a-64 全宽（**已定稿**，F4 v1.0.1 §2.6）｜ checksum = hex16(FNV1a64(S))——占位已销账（GW-P2-015 F4 §9.3-1）｜ 消费方：INV-F5-3`
 - `F5.2 ｜ 重放起点 ｜ 档 d ｜ replay(d) = apply(d.meta.f4Seed, d.*, commandsSince(d)) → 事件流逐字节 ≡ d 生成时事件流尾部 ｜ 消费方：BE-5`
 
 ## A.5 边缘情况（存档面）
@@ -464,7 +469,7 @@ interface SaveDocument {
 | A.4-1 | F2 v1.0.4 | S0/S1 边界消费＋C 拒存双闸——请 F2 下版在 §6.2 存档点行补「F5 入口闸再拒」半句（可选，非阻塞） |
 | A.4-2 | C2 v1.1.3 | E12 全量序列化消费（含 controlMode——controlMode 系 C2 §3.1 实体字段，被「全量」覆盖随档携带；C2-E12 括注原文仅 placement/auraStrategyId，此处显式声明收口）——零新增要求 |
 | A.4-3 | C6 v1.0.2 / C9 v1.0 / F1 v1.4.3 / C3 v1.0.3 | 各分部序列化结构引用——结构变更须通告 schemaVersion 递增（流水线纪律，请主理人纳入互审 checklist） |
-| A.4-4 | F4（未落盘） | f4Seed/checksum 签名占位（§9.13 联动） |
+| A.4-4 | F4 v1.0.1 | ✅ **已回执（GW-P2-015）**：f4Seed=8 位小写 hex（F4 §2.2）/ checksum=FNV-1a-64 全宽 hex16（F4 §2.6）定稿兑现；`f4` 必选分部落 A.3（F4State=F4 §3.1） |
 | A.4-5 | X1（附录 B） | CampaignLedger 序列化引用；封存档只读语义（B.2.3） |
 
 ---
@@ -484,9 +489,9 @@ X1 拥有 CampaignLedger 与关间流转状态机：三关线性骨架（教学�
 
 | 关 | 定位 | 波次 | 墙长 W | GATE | 坡道 | 关初粮饷键 |
 |---|---|---|---|---|---|---|
-| L1 | 教学 | 4 | 12 | 1 | 1 | `campaign.initialTreasury.L1` |
-| L2 | 标准 | 6 | 16 | 1 | 2 | `campaign.initialTreasury.L2` |
-| L3 | 高潮 | 8 | 20 | 2 | 3 | `campaign.initialTreasury.L3` |
+| L1 | 教学 | 4 | 12 | 1 | 1 | `perLevel.L1.initialTreasury` |
+| L2 | 标准 | 6 | 16 | 1 | 2 | `perLevel.L2.initialTreasury` |
+| L3 | 高潮 | 8 | 20 | 2 | 3 | `perLevel.L3.initialTreasury` |
 
 > **波次列注（v1.0.1 追加）**：波次 4/6/8 为档位锚点非定值，⚠ 随 C9 OQ-1 灰盒标定——防实现期把档位当定值（C9 v1.0 §2.6 骨架语义不受影响）。
 

@@ -1,6 +1,6 @@
 # C9 波次与攻势编排系统 · GDD
 
-> **状态**：v1.0-draft（2026-09-21）｜ GW-P2-009 ｜ GDD 撰写序列 #8a
+> **状态**：v1.0.1（2026-09-22，F3 合流勘误批 A3 联动：§4 C8 消费精化注记中 `intent-scripts.json` 写法精化为 `ai-scripts.json::intentScripts`（F3 v1.0.1 R-3），两处措辞零结构改动，主理人代落）｜ GW-P2-009 ｜ GDD 撰写序列 #8a
 > **产出**：文策渊（design-strategist-c9）
 > **上游依据**：`design/gdd/systems/C8-xiongnu-ai.md` v1.0.1（§2.2 WaveManifest{units, intentTag, spawnEdge} 签名——C8 转派挂账本次正式消费、§2.1 B③ 消费路径、intentTag 三枚举与 intent-scripts.json 注入面、§9.1-4 半销账行）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.3（§2.2-B① 入场时点/D⑤ cursor 前移固定位、§2.5 胜负检查点 C9 侧输入、F2.5/F2.7 公式、E2 多波并存、E8 末波破燧、E13 顺延同构、§6.2 波次入场钩子行、§3.2 DPhaseLedger.waveCursor 镜像）｜ `design/gdd/systems/F1-terrain-grid.md` v1.4.3（§10.1 三关三变量矩阵、§10.4 最小结构判据=兵种引入门禁、§2.7 单轴红线「多波全从开放端进场」、enemySpawns/EnemySpawnDef、placeUnit/canPlace 写白名单、V2/V11/V12 校验、§10.2 渲染护栏 ≤80）｜ `design/gdd/systems/C2-units.md` v1.1.2（§2.1 UNDEFINED=攻方波次队列源态、「C9 入场→DEPLOYED」路径、§3.4 enterField 白名单与 C2-E7 双闸、§2.7 eliminate 死亡事件、E11 跨波存活裸保留、§10 OQ-5）｜ `design/gdd/systems/C6-economy.md` v1.0.2（§2.6 守方援军时刻表归 C6/敌军波次归 C9 分界声明）｜ `design/systems-breakdown.md` v1.0（§1.2 C9 职责、§5.4-R4 三变量节奏差异、§4 C9=数值载体宿主 F3）｜ `design/game-concept-planA-turnbased.md` 定稿 v1.0（§4 三关节奏=教学→标准→高潮、§6 四兵种构成与克制表、决策④匈奴仅 AI、P4 濒危险胜）
 > **范围红线**：本文只裁 C9——每关敌军构成的**数据模型**（波次表 schema 与 waves.json 文件模式）、入场节奏与时序（F2 B①/D⑤ 挂点的 C9 侧语义）、佯攻/主攻/齐攻的**编排表达**（intentTag 随波下发的编排骨架）、波次强度曲线的三关差异化表达、波次耗尽谓词（F2.5 的 C9 侧输入）。**不写**匈奴 AI 决策内容（C8——本文只产其消费的 WaveManifest）、单位属性数值（C2/F3）、入场落点的寻路与移动执行（C1）、波次构成数值定值（F3 表宿主，全部留灰盒）、守方援军时刻表（C6 §2.6 分界）、任何动态波次触发（MVP 纯预设，动态调整留 Alpha）。
@@ -160,7 +160,7 @@ interface WaveUnitSpec {
   - 语义层：t+1 回合 MAIN_ASSAULT 入场时，t 波 FEINT 残部通常仍在场——`unitIntents` 扩展字段使残部**继续按 FEINT 评分**（多点拉扯床弩/礌石火力），新入场单位按 MAIN_ASSAULT 集中破口。
   - 效果：**实际并发无需波内分组**——时间上的重叠就是空间上的两路，且每路意图纯净。这是裁定 A「意图随波不随回合」的玩法落点：佯攻的价值恰在于主攻到达时它还在拉火力。
 - **意图随波不随回合**（裁定 A 核心）：单位对意图的绑定在入场瞬间经 unitWaveMap 固化，此后**不随当前波切换而漂移**。当前波裁定（§2.3）只决定 WaveManifest 顶层四字段（C8 的 IntentWeights 主键与 P4 旗标）；在场单位的逐单位意图恒查 `unitIntents[u]`。
-- **C8 消费精化（受控扩展，待 C8 回执）**：C8.3 意图注入的查表键由 `intentTag` 精化为 `unitIntents[u] ?? intentTag`。**单波在场时两者恒等，C8 现有行为逐字节零变化**；多波并存时启用逐单位继承。C8 §2.2 表结构零破坏（仅追加可选字段），C8 §2.2 主表、intent-scripts.json 键位、(levelId, waveId) 覆盖粒度全部原样有效。
+- **C8 消费精化（受控扩展，待 C8 回执）**：C8.3 意图注入的查表键由 `intentTag` 精化为 `unitIntents[u] ?? intentTag`。**单波在场时两者恒等，C8 现有行为逐字节零变化**；多波并存时启用逐单位继承。C8 §2.2 表结构零破坏（仅追加可选字段），C8 §2.2 主表、`ai-scripts.json::intentScripts` 键位（F3 v1.0.1 R-3 规范写法）、(levelId, waveId) 覆盖粒度全部原样有效。
 - **COORDINATED 齐攻的表达**：齐攻的「齐」在 C8 评分层（同步登城协同项，C8 OQ-3 灰盒量化）——**C9 波次表不新增任何齐攻专属字段**。编排层的义务只有一条：给 COORDINATED 波**配足云梯步兵**（多梯并立是 F1-E4 既定合法场景），使 C8 的同步权重有梯可用。反例警示：COORDINATED 波只配 1 个云梯兵 = 意图空转（校验不可行——「足量」是灰盒调参目标，非静态规则，入 §10 OQ-2）。
 
 ### 2.6 三关强度曲线编排骨架（主裁点 4 + R4 取值组合表）
@@ -381,7 +381,7 @@ C9 全自动、无玩家输入入口（决策④匈奴仅 AI 的编排面延伸�
 | F1 地形 v1.4.3 | 结构契约 | `enemySpawns`（spawnEdge 引用源 + zRange）、`placeUnit/canPlace` 写白名单消费（经 C2 链）、出生区 GROUND/passable 判定、V2/V11/V12 校验兜底、§10.1 三变量（W/连接器列为 R4 组合表输入）、§10.4 兵种门禁（W-V3 依据）、§10.2 渲染护栏（W-V10 哨兵）、§2.7 单轴红线 |
 | F2 相位 v1.0.3 | 窗口与时序 | B① 入场窗口、D⑤ cursor 簿记固定位、D④ 检查点（wavesExhausted 求值时点）、E2 多波并存语义、E8 末波破燧（W-V6）、E13 顺延同构参照、DPhaseLedger.waveCursor 镜像位、S0/S1 存档点覆盖 |
 | C2 单位 v1.1.2 | 状态与事件 | `enterField`（UNDEFINED→DEPLOYED，§3.4 白名单）、templateId 枚举（W-V3 查表源）、`eliminate` 事件（unitWaveMap 清理触发源）、E11 跨波存活裸保留口径、E7 双闸回执语义、§10 OQ-5 承接 |
-| C8 匈奴 AI v1.0.1 | 消费方契约 | §2.2 WaveManifest 四字段签名（本文落地）、intentTag 三枚举、intent-scripts.json 主键 + (levelId, waveId) 覆盖粒度、§2.1 B③ 消费路径、§9.1-4 半销账行（本次销账） |
+| C8 匈奴 AI v1.0.1 | 消费方契约 | §2.2 WaveManifest 四字段签名（本文落地）、intentTag 三枚举、ai-scripts.json::intentScripts 主键（F3 v1.0.1 R-3 规范写法）+ (levelId, waveId) 覆盖粒度、§2.1 B③ 消费路径、§9.1-4 半销账行（本次销账） |
 | C6 经济 v1.0.2 | 分界互认 | §2.6 守方援军/敌军波次分界（零交叉确认）；无数据依赖 |
 | F3 数值表 | 数值宿主 | `l{n}-waves.json`（WaveTable——C9 为数值载体，systems-breakdown §4）；`spawnDepth` 键（落格扫描深度 ⚠）；单位/间隔全部定值 |
 | F4 确定性随机 | 纪律 | C9 零消费（INV-C9-4，静态扫描断言）——纯预设编排不需要随机源 |
