@@ -1,0 +1,14 @@
+browser: C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
+edge pid=4480
+cdp ready: Edg/122.0.2365.92
+target: 733D144496CB933674089C7C3C55E5C2
+[mode] VS3Selftest bridge
+PASS  boot         {"ok":true,"cells":63,"connectors":3,"seed":"vs-l1-seed-01"}
+PASS  hitRate      {"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001}
+PASS  be2          {"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6}
+PASS  aiTiming     {"avg":0.1474999997764826,"worst":0.6000000089406967,"budget":10,"pass":true}
+PASS  determinism  {"same":true,"length":3440,"lines":13}
+PASS  smoke        {"ok":true,"end":"END_LOSE","phase":"END_LOSE","turns":32}
+PASS  metrics      {"be2":{"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6},"hitRate":{"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001},"aiTiming":{"avg":0.1375,"worst":0.5,"budget":10,"pass":true},"determinism":{"same":true,"length":2600,"lines":11}}
+PASS  uiButtons    {"ok":true,"missing":[]}
+== VS-3 BROWSER CHECK: ALL PASS ==
