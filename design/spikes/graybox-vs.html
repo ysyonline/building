@@ -2645,9 +2645,19 @@ function boot() {
     var fb = WORLD.facility(okb.facilityId);
     chk('build_ok', okb.ok && C6.treasury() === t0 - TABLES.economy.cost.build.bedCrossbow, 'charged=' + okb.charged);
     chk('build_constructing', fb && fb.state === 'CONSTRUCTING' && fb.createdTurn === 1, 'state=' + (fb && fb.state) + ' createdTurn=' + (fb && fb.createdTurn));
-    /* 部署：容量满拒绝 + 成功扣费 */
-    var cf = C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_0_1', templateId: 'garrison_squad' });   // 垛口容量 1，初始 D_2 占位
-    chk('deploy_cell_full', !cf.ok && cf.reason === 'CELL_FULL', JSON.stringify(cf));
+    /* 部署：非部署区拒绝 + 容量满拒绝 + 成功扣费 */
+    var cf = C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_0_1', templateId: 'garrison_squad' });   // 垛口 PARAPET 不在部署白名单
+    chk('deploy_out_of_zone', !cf.ok && cf.reason === 'OUT_OF_ZONE', JSON.stringify(cf));
+    /* 容量满：6_1_1（RAMPART_WALK 容量 2，进 A 后 0 单位；设施账与单位账独立，初始床弩占位不影响部署）
+     * 连投三次 → 前两次成功、第三次 CELL_FULL（C7 §2.4 闸序：白名单→容量）。
+     * 断言后自清理（两只挪 OFFBOARD，零费）以免占满 6_1_1、卡死下游 redeploy_move_free 的落位。 */
+    var cp1 = C7.exec({ type: 'DEPLOY_UNIT', cellId: '6_1_1', templateId: 'garrison_squad' });
+    var cp2 = C7.exec({ type: 'DEPLOY_UNIT', cellId: '6_1_1', templateId: 'garrison_squad' });
+    var cp3 = C7.exec({ type: 'DEPLOY_UNIT', cellId: '6_1_1', templateId: 'garrison_squad' });
+    chk('deploy_cell_full', cp1.ok && cp2.ok && !cp3.ok && cp3.reason === 'CELL_FULL',
+      '6_1_1 cap=2 空置 → ' + [cp1.ok, cp2.ok, cp3.reason].join('/'));
+    C7.exec({ type: 'REDEPLOY_UNIT', unitId: cp1.unitId, toCellId: 'OFFBOARD' });
+    C7.exec({ type: 'REDEPLOY_UNIT', unitId: cp2.unitId, toCellId: 'OFFBOARD' });
     var t1 = C6.treasury();
     var okd = C7.exec({ type: 'DEPLOY_UNIT', cellId: '7_1_1', templateId: 'garrison_squad' });  // 两套账：与床弩同格合法
     chk('deploy_ok_two_ledgers', okd.ok && C6.treasury() === t1 - TABLES.economy.cost.deploy.garrisonSquad, 'charged=' + okd.charged);
@@ -2660,12 +2670,31 @@ function boot() {
     chk('redeploy_offboard_free', ob.ok && ob.charged === 0 && t2 === t3, 'Δtreasury=' + (t3 - t2));
     var rd = C7.exec({ type: 'REDEPLOY_UNIT', unitId: okd.unitId, toCellId: '6_1_1' });
     chk('redeploy_move_free', rd.ok && rd.charged === 0 && WORLD.unit(okd.unitId).cellId === '6_1_1', 'cell=' + WORLD.unit(okd.unitId).cellId);
-    /* 破产=禁止下单：压到余额 < 造价 */
-    (function drain() { while (C6.treasury() >= TABLES.economy.cost.build.rollingStock) { C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' }); if (!C6.canAfford({ kind: 'BUILD_FACILITY', facilityKind: 'rollingStock' })) break; } })();
+    /* 破产=禁止下单：压到余额 < 造价
+     * 排水三件套（缺一不可）：①循环条件=canAfford + 预算上限 ②失败即退 ③成功后挪 OFFBOARD 腾格。
+     * 缺③则 5_1_1（RAMPART_WALK 容量 2、已占 D_2）第二次部署起恒 CELL_FULL 零扣费 →
+     * 余额冻结在 430 → 两处 while 均无退出条件成立 → 死循环 + drained 无界增长。
+     * ⚠ 循环内禁止用变量名 r（外层 r 是 checks 结果对象，会被覆盖）。 */
+    var cost50 = TABLES.economy.cost.deploy.garrisonSquad;
+    var spent = 0;
+    (function drain() {
+      while (C6.canAfford({ kind: 'DEPLOY_UNIT', templateId: 'garrison_squad' }) && spent < 20 * cost50) {
+        var dr = C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' });
+        if (!dr.ok) break;
+        spent += dr.charged;
+        C7.exec({ type: 'REDEPLOY_UNIT', unitId: dr.unitId, toCellId: 'OFFBOARD' });   // 挪下场腾格，只烧钱
+      }
+    })();
     var t4 = C6.treasury();
     var drained = [];
-    while (C6.treasury() >= TABLES.economy.cost.deploy.garrisonSquad) drained.push(C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' }));
-    var ins = C7.exec({ type: 'BUILD_FACILITY', cellId: '7_1_1', facilityKind: 'rollingStock' });
+    while (C6.canAfford({ kind: 'DEPLOY_UNIT', templateId: 'garrison_squad' }) && spent < 20 * cost50) {
+      var dr = C7.exec({ type: 'DEPLOY_UNIT', cellId: '5_1_1', templateId: 'garrison_squad' });
+      if (!dr.ok) break;
+      spent += dr.charged;
+      drained.push(dr);
+      C7.exec({ type: 'REDEPLOY_UNIT', unitId: dr.unitId, toCellId: 'OFFBOARD' });
+    }
+    var ins = C7.exec({ type: 'BUILD_FACILITY', cellId: '5_1_1', facilityKind: 'rollingStock' });   // 7_1_1 已被本轮前面建的床弩占用（世界闸先于资金闸 → 恒 CELL_OCCUPIED_FACILITY）；5_1_1 设施账空置
     chk('bankrupt_insufficient', !ins.ok && ins.reason === 'INSUFFICIENT' && C6.treasury() < TABLES.economy.cost.build.rollingStock, '余额=' + C6.treasury() + ' < 造价=' + TABLES.economy.cost.build.rollingStock);
     /* 修理：夹取 + BAD_DELTA + 满血 NO_DAMAGE */
     var xbow = WORLD.facilityAt('6_1_1');

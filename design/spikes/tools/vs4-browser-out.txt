@@ -1,0 +1,64 @@
+browser: C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
+page:    file:///D:/code/building/design/spikes/graybox-vs.html
+port:    9335   profile: D:\code\building\design\spikes\tools\_edge-profile-vs4
+mode:    per-check target isolation · eval timeout 45s
+edge pid=13460
+cdp ready: Edg/153.0.4234.48
+bridge probe: {"v4":"object","v3":"object","same":false,"keys":["boot","determinism","hitRate","be2","aiTiming","economy","loot","c7","c4","dPhase","vs4all","metrics","smoke"]}
+NOTE: VS-3 旧桥 window.VS3Selftest 仍在页面内（graybox-vs.html:2551）；本脚本全部走 VS4Selftest，勿混淆。
+PASS  bridgeIsV4     {"ok":true}
+sig probe (无参调用实测):
+  hitRate      -> {"hits":0,"rate":null,"expected":0.75,"dev":null}
+  be2          -> {"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6}
+  determinism  -> {"same":true,"length":3470,"lines":13}
+  aiTiming     -> {"avg":0.23999999910593034,"worst":0.5999999642372131,"budget":10,"pass":true}
+--- VS-3 继承口 ---
+PASS  boot           {"ok":true,"cells":63,"connectors":3,"seed":"vs-l1-seed-01"}
+PASS  determinism    {"same":true,"length":2624,"lines":11}
+PASS  hitRate        {"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001}
+PASS  be2            {"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6}
+PASS  aiTiming       {"avg":0.28250000029802325,"worst":1.5,"budget":10,"pass":true}
+--- VS-4 新增口 ---
+PASS  economy        {"checks":[{"name":"d2_farm","pass":true,"detail":"farm=20"},{"name":"d2_supply","pass":true,"detail":"supply=20"},{"name":"d2_total","pass":true,"detail":"total=40"},{"name":"d2_treasury_after","pass":true,"detail":"after=520"},{"name":"d2_idempotent","pass":true,"detail":"{\"ok\":false,\"reason\":\"IDEMPOTENT_REJECT\",\"turn\":1,\"turnLastSettled\":1}"},{"name":"charge_window","pass":true,"detail":"{\"ok\":false,\"
+        checks(7): d2_farm, d2_supply, d2_total, d2_treasury_after, d2_idempotent, charge_window, charge_ok_atomic
+PASS  loot           {"checks":[{"name":"own_death_no_entry","pass":true,"detail":"len=0"},{"name":"foe_loot_registered","pass":true,"detail":"amount=30"},{"name":"ledger_append_only","pass":true,"detail":"len=1"},{"name":"register_zero_f4","pass":true,"detail":"cursor unchanged"},{"name":"treasury_untouched","pass":true,"detail":"双段式：登记不动余额"},{"name":"d2_loot_in","pass":true,"detail":"loot=30"},{"name":"d2_ledger_cleared","pass":true,"d
+        checks(7): own_death_no_entry, foe_loot_registered, ledger_append_only, register_zero_f4, treasury_untouched, d2_loot_in, d2_ledger_cleared
+PASS  c7             {"checks":[{"name":"window_gate","pass":true,"detail":"{\"ok\":false,\"reason\":\"ILLEGAL_WINDOW\"}"},{"name":"build_out_of_zone","pass":true,"detail":"{\"ok\":false,\"reason\":\"OUT_OF_ZONE\"}"},{"name":"build_missing_facing","pass":true,"detail":"{\"ok\":false,\"reason\":\"MISSING_FACING\"}"},{"name":"build_occupied","pass":true,"detail":"{\"ok\":false,\"reason\":\"CELL_OCCUPIED_FACILITY\"}"},{"name":"build_ok","pa
+        checks(22): window_gate, build_out_of_zone, build_missing_facing, build_occupied, build_ok, build_constructing, deploy_out_of_zone, deploy_cell_full, deploy_ok_two_ledgers, redeploy_same_cell, redeploy_offboard_free, redeploy_move_free, bankrupt_insufficient, repair_clamp, repair_bad_delta, repair_no_damage, dismantle_no_refund, dismantle_cell_freed, dismantle_dead_target, wall_repair_closed, c7_zero_f4, inv_c6_1
+PASS  dPhase         {"checks":[{"name":"d2_before_d3","pass":true,"detail":"d2→d3"},{"name":"reinforce_arrived","pass":true,"detail":"顺延队列已清空"},{"name":"reinforce_free","pass":true,"detail":"援军免费（C6-H）· treasury=520"},{"name":"report_once","pass":true,"detail":"二次调用拒绝（BE-8）"},{"name":"report_stats","pass":true,"detail":"farmTotal=20"}],"pass":true}
+        checks(5): d2_before_d3, reinforce_arrived, reinforce_free, report_once, report_stats
+--- 端到端 / 聚合 ---
+PASS  smoke          {"ok":true,"end":"END_LOSE","phase":"END_LOSE","turns":32}
+PASS  metrics        {"be2":{"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6},"hitRate":{"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001},"aiTiming":{"avg":0.4850000008940697,"worst":1.300000011920929,"budget":10,"pass":true},"determinism":{"same":true,"length":2624,"lines":11}}
+--- UI 存活 ---
+PASS  uiButtons      {"ok":true,"missing":[]}
+PASS  uiButtonsVs4   {"ok":true,"missing":[]}
+--- 隔离区（R-4）---
+[ISOLATED · FAIL · 不计入总判定]  c4
+  note: [DISPUTED · 待 VS-7 D1] graybox-vs.html:2715 reload_derivation 断言口径（跳过下一轮）与 GDD C4.2 字面式（次轮即可再射）相反；本批按 R-3 禁止修改该断言，豁免类别 b 只授权「D1 裁定后一次性改对」。
+  raw: {"checks":[{"name":"volley_id_shape","pass":true,"detail":"volleyId=1_V"},{"name":"setup_not_ready","pass":false,"detail":"建成当轮不可射（C4.3）"},{"name":"setup_ready_t2","pass":true,"detail":"T2 state=RELOADING"},{"name":"reload_derivation","pass":false,"detail":"t2拒/t3拒(跳过下一轮)/t4就绪"},{"name":"setup_derivation","pass":true,"detail":"当轮不可射/次轮就绪"},{"name":"drop_no_ladder","pass":true,"detail":"{\"ok\":false,\"reason\":\"NO_LADDER\"}"},{"name":"stock_armed","pass":true,"detail":"state=ARMED"},{"name":"drop_window_gate","pass":true,"detail":"{\"ok\":false,\"reason\":\"ILLEGAL_WINDOW\",\"consumed\":false}"},{"name":"drop_out_of_reach","pass":true,"detail":"{\"ok\":false,\"reason\":\"OUT_OF_REACH\"}"},{"name":"drop_no_crew_or_success","pass":false,"detail":"{\"ok\":false,\"reason\":\"OUT_OF_REACH\"}"},{"name":"c4_zero_f4_nondrop","pass":true,"detail":"F4 单流纪律（drop 结算消费主流）"}],"pass":false}
+  failed checks (3/11):
+    - setup_not_ready   detail="建成当轮不可射（C4.3）"
+    - reload_derivation   detail="t2拒/t3拒(跳过下一轮)/t4就绪"
+    - drop_no_crew_or_success   detail="{\"ok\":false,\"reason\":\"OUT_OF_REACH\"}"
+--- 异常面 ---
+pageErrors: (none)
+consoleErrors: (none)
+--- 汇总 ---
+judged: ALL PASS
+  bridgeIsV4    PASS
+  boot          PASS
+  determinism   PASS
+  hitRate       PASS
+  be2           PASS
+  aiTiming      PASS
+  economy       PASS
+  loot          PASS
+  c7            PASS
+  dPhase        PASS
+  smoke         PASS
+  metrics       PASS
+  uiButtons     PASS
+  uiButtonsVs4  PASS
+  c4            ISOLATED-FAIL
+isolated: c4 = ISOLATED-FAIL（失败子项: setup_not_ready, reload_derivation, drop_no_crew_or_success）  [DISPUTED · 待 VS-7 D1 · 不计入总判定]
