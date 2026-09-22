@@ -1,6 +1,6 @@
 # C8 匈奴 AI 系统 · GDD
 
-> **状态**：v1.0.3（2026-09-22，F3 合流勘误批 A3：`intent-scripts.json` 写法全文统一为 `ai-scripts.json::intentScripts`（F3 v1.0.1 R-3 单文件裁定），六处措辞精化零结构改动，主理人代落）｜ GW-P2-005 ｜ GDD 撰写序列 #6
+> **状态**：v1.0.4（2026-09-22，VS-4 挂账 4 回灌：OFFBOARD 目标集约束正式规则化，主理人裁定 B，落点 §2.1/§2.3/§4-C8.9/§5-C8-E13）｜ 前序 v1.0.3（2026-09-22，F3 合流勘误批 A3：`intent-scripts.json` 写法全文统一为 `ai-scripts.json::intentScripts`（F3 v1.0.1 R-3 单文件裁定），六处措辞精化零结构改动，主理人代落）｜ GW-P2-005 ｜ GDD 撰写序列 #6
 > **产出**：design-strategist-2
 > **上游依据**：`design/game-concept-planA-turnbased.md` 定稿 v1.0（决策①「AI 弱则崩」风险/§6 四兵种克制表/§7 MVP 四兵种口径）｜ `design/systems-breakdown.md` v1.0（C8 一句话职责=意图脚本+目标评分、硬依赖 C2·C9、§6.2 督队裁定含用户扩展性附加约束）｜ `design/gdd/systems/F2-phase-scheduler.md` v1.0.2（§2.2 B③ 计划生成窗口、C② 速度序、§3.3 plans_ready 事件）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.5（MoveOrder/MoveReport/MoveQuery/reachable、BLOCKED_TOP、C1-E15 冲车不进 C1）｜ `design/gdd/systems/C2-units.md` v1.1.1（§2.3 四兵种行为面、§2.4 双资源经济、§2.5 架梯 E1、§2.6 AuraStrategy 框架、§3.6 hasAura/UnitStatsQuery）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§6.1 firePreview/canFire、§2.1 设施作攻击目标）｜ `design/gdd/systems/C4-siege-phase.md` v1.0.1（§3.2 facility_volley 事件契约、§7.2 C8 消费面）｜ `design/gdd/systems/C5-combat-resolution.md` v1.1（§3.3 expectedMods/previewStrike、§10 OQ-4 走廊掩体口径）｜ `design/spikes/graybox-f1-report.md` v1.0（A* 0.037ms 均值、全相位<50ms 性能预算）
 > **范围红线**：本文只裁 C8——意图脚本消费与权重注入、目标价值评分框架（含确定性 tie-break）、四兵种行为契约（云梯/冲车/骑射手/督队）、计划生成窗口与确定性纪律、C10 AUTO 同轨消费接口、C11 士气 hook 预留。**不写**波次构成与入场时刻表（C9 职责，本文只消费其产物）、托管决策逻辑（C10 与 C8 同轨消费 F2 AUTO 槽，不另写一套）、单位属性/移动执行/伤害结算（C2/C1/C5）、士气系统实现（C11 Alpha）、任何数值定值（全落 F3 表）。
@@ -71,6 +71,7 @@ B③ C8.generatePlans(turn, snapshot, waveManifest)：
     ④ 对每个匈奴单位 u（ACTIVE∧BOTH 可达图）：
        - 计算 reachable(u)（C1 Dijkstra 泛洪）
        - 枚举候选目标/候选落点（帅帐/戍卒/设施/连接器通路）
+       - 目标集过滤：剔除 cellId==='OFFBOARD' 的单位（未登场守方预备队，C8.9／C8-E13）
        - 对每个候选算 Score(u, candidate) = 目标价值 − 代价 + 意图权重 + Σ ScoringHook
        - 取最高分候选，生成 UnitPlan（移动序列 + 可选行动）
     ⑤ 输出 UnitPlan[]，发 plans_ready（F2 B→C 迁移）
@@ -115,6 +116,8 @@ Score(u, c) = Σ_target  w_target · Value_target(u, c)        // 正项：目�
              + IntentBias(u, c, intentTag)                   // 意图注入（§4.3）
              + Σ hook.score(u, c)                            // 可扩展 hook（§2.6）
 ```
+
+> [VS-7 勘误/已裁定] **目标集构造约束（主理人裁定 B，2026-09-22；VS-4 挂账 4 回灌，v1.0.4）**：候选目标集**不含 `cellId === 'OFFBOARD'` 的单位**——未登场的守方预备队（C2 §2.1 X-1 组合态 `DEPLOYED ∧ OFFBOARD`，经 C7 `DEPLOY_UNIT` → `F1.placeUnit` 才落格）尚未占据任何格位，`F1.getCell` 对其寻址为 `null`。**语义裁定**：预备队不在战场上，因此不可被瞄准、不可被评分、不进 `c_exposure`/`Value` 任何一项——「预备队不被瞄准」是规则而非实现巧合。**工程必要性**：不过滤会使目标枚举拿到 null 格并崩溃（VS-4 实现侧已先行加过滤并注释在码，本次为 GDD 侧回灌对齐）。**边界**：单位一经登场（`placeUnit` 落格）即自动进入目标集，无需额外开关；反之 `REDEPLOY_UNIT` 退回 OFFBOARD（C7 OFFBOARD 哨兵＝离场）后即退出目标集。详见 §4-C8.9 与 §5-C8-E13。
 
 **目标价值项**（正）：
 
@@ -250,6 +253,7 @@ interface ScoreBreakdown { candidate: TargetCandidate; targetVal: number; costVa
 - `C8.6 ｜ 性能预算：genCost = O(N·|U|)（N≤400 快照、|U|≤80 单位），单轮 generatePlans P95 < planBudgetMs（F3，初值 ⚠ 对齐 C1 全相位<50ms，建议 ≤10ms 量级）｜ 消费方：实现/性能验收`
 - `C8.7 ｜ 督队引导：leadBias(u,c) = hasAura(leadUnit)? leadWeight·highValueTargetVal(c) : 0 ｜ hasAura 消费 C2 §3.6；highValueTargetVal 取 beacon/garrison 集群项 ｜ 消费方：C8`
 - `C8.8 ｜ 冲车锚点推进：RamAdvance 目标 = argmin_{g∈gateCells} pathDist(u, g)（普通单格申请经 C2 实体契约，非 C1 A*）｜ 威胁评估含 C3 firePreview 射界 ｜ 消费方：C8/C2`
+- `C8.9 ｜ 目标集构造（[VS-7 勘误/已裁定] 裁定 B，v1.0.4）：Candidates(u) = {帅帐} ∪ {c | c ∈ {戍卒 ∪ 设施 ∪ 连接器通路} ∧ cellId(c) ≠ 'OFFBOARD'} ｜ 过滤先于评分：未登场预备队（X-1 组合态 DEPLOYED∧OFFBOARD，getCell=null）不入枚举、不入 Value/Cost 任一项；登场（placeUnit）后自然入集 ｜ 消费方：C8`（实现侧已在 VS-4 加同构过滤，本次为 GDD 回灌，与实现逐字一致、零回归）
 
 ---
 
@@ -280,6 +284,7 @@ interface ScoreBreakdown { candidate: TargetCandidate; targetVal: number; costVa
 
 - **C8-E11｜守方全灭（F2-E7）**：床弩仍自动守燧（C4）；C8 评分中「设施威胁」项仍存在，匈奴仍可优先拆床弩，但无戍卒堵口时登城代价骤降——评分自然导向直取帅帐。
 - **C8-E12｜走查二边界（明确裁定）**：C8 **不消费** `facility_volley` 的装填节拍（`reloadTurns` 隐藏守方配置）做预测走位；床弩威胁只经 C3 `firePreview`/`canFire`（静态射界，已知要塞）。`facility_volley` 事件在 MVP 仅作**可选粗信号**挂 `MoraleHook` 同类扩展位（默认不读），精确「趁装填冲梯」明确出 MVP 范围（见 §9 走查二 + C4 §6.2 回派）。
+- > [VS-7 勘误/已裁定] **C8-E13｜未登场预备队（cellId==='OFFBOARD'）不在 AI 目标集（裁定 B，v1.0.4）**：守方单位在 `DEPLOYED ∧ OFFBOARD` 组合态（C2 §2.1 X-1）时尚未落格——`F1.getCell(u)` 为 `null`，无坐标、无层位、不在任何格的可达图上。裁定：①**不入候选目标集**（C8.9 过滤先于评分），既不作为 `garrisonVal` 的计分项，也不参与 `congestion`/`exposure` 等任何代价项；②**不可被瞄准**——匈奴不会「追杀一个还没上场的戍卒」，与「预备队＝未在战场」的语义一致（C2 §2.1 该组合态即 X3 TS3 部署教学的单位来源）；③**登场即入集**——C7 `DEPLOY_UNIT`（或 D③ 援军 `placeReinforcement`）落格后，该单位在下一回合 B③ 的计划生成中自然进入目标集，无需额外开关；反向 `REDEPLOY_UNIT` 退回 OFFBOARD（C7 OFFBOARD 哨兵＝离场）后亦自然退出；④**工程面**：不做此过滤会使目标枚举拿到 null 格并在后续格位运算中崩溃——VS-4 实现侧已先行加入该过滤并注释在码，本条为 GDD 侧回灌，**GDD 与实现逐字对齐、零行为回归**（该过滤剔除的是一个原本必然崩溃的分支，不是对非空目标集的缩减，故不产生任何计划结果变化）。
 
 ---
 
@@ -356,6 +361,7 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 - [ ] BE-4：走查二合规——`generatePlans` 不读取 `facility_volley.reloadTurns` 类隐藏守方配置做预测走位（静态分析/断言：计划只依赖 `firePreview` 静态射界）。
 - [ ] BE-5：性能——单轮 `generatePlans` P95 < `planBudgetMs`（对齐 C1 全相位<50ms），≤80 单位不超预算。
 - [ ] BE-6：BLOCKED_TOP/目标满员/目标消失等中断场景不卡死、下回合自修正（E1/E2/E3）。
+- [ ] **BE-7（[VS-7 勘误/已裁定] 裁定 B，v1.0.4）**：OFFBOARD 过滤——构造「守方存在 `DEPLOYED∧OFFBOARD` 预备队」的战场快照，`generatePlans` 全程不引用该单位的格位（`getCell` 恒 null 不进评分），计划生成零异常；该单位经 `placeUnit` 落格后，下一回合 B③ 计划中其可作为 `garrisonVal` 目标出现（C8.9/C8-E13）。
 
 ### 8.3 玩法判据（供灰盒可玩性轮）
 
@@ -435,4 +441,5 @@ C8 全自动、无玩家输入入口（匈奴仅 AI，决策④）；P3 不得�
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-005 序列 #6）：意图脚本消费接口（intentTag→IntentWeights 注入评分）/目标价值评分框架（帅帐·戍卒·设施·通路 + 暴露·绕路·拥挤代价 + 显式字典序 tie-break）/四兵种行为契约（云梯架梯动态连接器、冲车锚点推进经 C2 实体契约不进 C1、骑射 L0 骚扰消费走廊掩体、督队光环只读+高价值引导）/UnitPlan 同轨 C10 AUTO 消费结构/ScoringHook 扩展性框架（MoraleHook 占位禁硬编码）/确定性重放与性能预算对齐 C1<50ms；两项前置走查结论入 §9（走查一 C5 OQ-4 确认销账、走查二 C4 facility_volley 节拍裁定超范围回派主理人）；督队 C2 §2.6 反向口径张力回派项入 §9 |
 | v1.0.1-draft | 2026-09-21 | GW-P2-008 合流批，OQ-2 销账，主理人授权 -2 执行：§10 OQ-2 行照录 C5 v1.2 联裁结论关闭；§2.4 骑射手行括注「C5 OQ-2 待定」刷新为「已闭——键位已定值待灰盒」；header 对齐状态补 C5 v1.2 消费确认半句。零实质设计变更（消费面逐词对照确认） |
 | v1.0.2-draft | 2026-09-21 | **C9 联裁批（GW-P2-011a，主理人授权 C9 作者代落）**：①§9.1-4 WaveManifest 挂账销账——C9 v1.0 四字段签名逐字落地+两受控扩展字段（unitIntents/enteringUnits）消费确认；②§2.2 增扩展字段消费注记（意图随波不随回合；查表键 `unitIntents[u] ?? intentTag`，单波在场本文行为逐字节零变化）；③C8.3 表达式查表键同步精化（intentTag→unitIntent(u)，语义扩展非变更）；④§9.1-5 UnitPlan 同轨挂账销账（C10 v1.0 §9.2 消费确认：同轨性落执行 API 层，即时决策制下对称数据结构无消费者为正确形态）。零结构性改动，全部为消费确认与键名精化 |
+| v1.0.4 | 2026-09-22 | **VS-4 挂账 4 回灌（GW-VS-04 收口，主理人裁定 B）：OFFBOARD 目标集约束正式规则化**——①§2.1 计划生成流程④增「目标集过滤：剔除 `cellId==='OFFBOARD'` 的单位」；②§2.3 增「目标集构造约束」澄清段（语义＝预备队不在战场故不可被瞄准；工程＝`getCell` 为 null 不过滤必崩；边界＝登场即入集 / 退回即出集）；③§4 增公式 C8.9；④§5 增 C8-E13（跨文档类，位于 E12 之后）；⑤§8.2 增 BE-7 断言（OFFBOARD 不进评分、落格后自然入集）。**零数值改动**（§8.4 全部权重、C8.1-C8.8 全部公式未动）；与 VS-4 实现侧已加的同构过滤逐字对齐，GDD 侧回灌不产生行为回归 |
 | v1.0.3 | 2026-09-22 | **F3 合流勘误批 A3（GW-P2-015，F3 R-3 单文件裁定，主理人代落）**：`intent-scripts.json` 旧写法全文统一为 `ai-scripts.json::intentScripts`——TL;DR-D、§2.2 映射注记、§3.2 键表两行、§8.4 汇总行共六处措辞精化，零结构改动。规范宿主=ai-scripts.json（C8 新建），intentScripts 为其段键 |

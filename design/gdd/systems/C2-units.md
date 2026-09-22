@@ -1,6 +1,6 @@
 # C2 单位系统 · GDD
 
-> **状态**：v1.1.3-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
+> **状态**：v1.1.4-draft（2026-09-22，GW-VS-04 收口批 K7：§3.2 UnitTemplate 补列 `costKey`/`lootKey` 查表键桥字段声明，主理人批准就地执行；只补字段＋指向，接口签名/§3.6 契约表/speed 定义一律未动）｜ 前序 v1.1.3-draft（2026-09-21）｜ GW-P2-002 ｜ GDD 撰写序列 #4（C2∥C3 可并行，本文 C2）
 > **产出**：文策渊（design-strategist-2）
 > **上游依据**：`design/gdd/systems/F1-terrain-grid.md` v1.4.2（占位容量 R1 结论/占用状态机/承载模型/E1·E2·E7 边缘裁定）｜ `design/gdd/systems/C1-pathfinding-movement.md` v1.0.4（MP 语义/攀爬时序/层位许可 flag 归属/MoveReport 契约）｜ `design/game-concept-planA-turnbased.md` §6 兵种克制表｜ `design/systems-breakdown.md` §6.2 督队裁定（含用户扩展性附加约束）
 > **范围红线**：本文只裁 C2——兵种数据契约、属性容器、占用与生命状态、行动经济、MVP 督队光环的**可替换策略框架**。**不写**：移动执行（C1）、伤害/命中/克制的结算数值（C5）、匈奴决策（C8）、士气和连锁溃退（C11 Alpha）、设施（C3）。
@@ -225,10 +225,18 @@ interface UnitTemplate {
   attackCapable: boolean;          // 督队 MVP=false（不直接输出）
   auraStrategyId?: string;         // MVP 唯 warlord_escort='presence-v1'
   meta: { nameKey: string; descKey: string };   // 文案锚点（P3 支柱/教学）
+  costKey: string;                 // economy.json 查表键（camelCase，如 'garrisonSquad'）— 结构定义 F3 §3.2①，消费面 C6 §3.4
+  lootKey: string;                 // economy.json 缴获查表键（camelCase）— 同上
 }
 ```
 
 > 表内容（数值基准）归 F3；本表是**结构权威**。`units.json` 新增兵种=加行，代码零改动。
+
+> [VS-7 勘误/已裁定] **查表键桥字段 `costKey` / `lootKey`（主理人第三轮终裁 K7，2026-09-22；v1.1.4 就地执行）**
+> - **性质（请按此读）**：**本声明为补记既有事实，非新增定义**——两个字段在实现侧已随每个兵种模板落值并被消费（`_vs4-app.js` units 表逐模板 `lootKey:'garrisonSquad'` 等，`lootOf()`／缴获登记面读之），此前**仅缺 GDD 侧声明**；本次把它补进结构权威表，消除「实现有、GDD 无」的黑字段（该缺口的正面处置范例见 `design/reviews/GW-VS-04-consolidation.md` §6-R-9）。
+> - **语义**：二者是 `units.json` → `economy.json` 的**查表键桥**——`costKey` 供 C6 报价按 `cost.deploy[tpl.costKey]` 直取，`lootKey` 供缴获按 `loot.perTemplate[tpl.lootKey]` 直取；均 **camelCase、零大小写归一、零别名兼容**（表内无键＝不可购买/零缴获，走 F3 INV-F3-4 fail-fast）。`templateId` 本身保持 `units.json` 命名空间形状（snake_case，见上表）——两套形状的分界由此显式化，不再依赖实现侧键名桥。
+> - **权威指向**：字段定义与收编明细见 `F3-data-tables.md` §3.2①（v1.0.2）；消费侧契约见 `C6-economy.md` §3.4（v1.0.4，含命名空间分界与「查表层不得再归一化」纪律）。
+> - **本轮改动边界（硬约束遵守声明）**：**只补这两个字段的声明 ＋ 上述指向**；**未触碰任何接口签名、未触碰 §3.6 `UnitStatsQuery` 契约表、未触碰任何 `speed(u)` 相关定义**（后者属 VS-7 勘误 **K3b** 域，禁止混批）。
 
 ### 3.3 行为旗标（UnitFlags，给 C1/C5/C8 的消费面）
 
@@ -482,3 +490,4 @@ interface UnitStatsQuery {
 | v1.1.1-draft | 2026-09-21 | 003 门内自改（设计侧走查移交，主理人批准）：①D-2 header 上游依据版本升引 F1 v1.3→v1.4.2、C1 v1.0.1→v1.0.4（引用内容零冲突，纯版本号对齐）；②D-3 §7.3「F2（v1.0 已落盘）」顶格孤行窜表修复——原行无表头可挂致 markdown 断表，转同构列表项（与 C1 行格式一致） |
 | v1.1.2-draft | 2026-09-21 | **GW-P2-008 互审合流批（主理人授权，design-strategist-2 执行）**：X-1 采纳——§2.1 表下增「组合态注记」一行（`DEPLOYED∧OFFBOARD`=已购未上场，C7 撤回预备队零费再部署，不入行动序/C8 计划域；以 C6 charge 是否发生划「已购/未购」界；「复用 WITHDRAWN」经主理人终裁否决）；UNDEFINED 行加防混半句；§6.2「层位部署校验」行补 C7 v1.0 五闸履行注记。C2 结构零改动（纯注记行，无新枚举无新迁移） |
 | v1.1.3-draft | 2026-09-21 | **C10 增补批（主理人授权代落，design-strategist-c10 执行）**：C10 §9.6 两项申请落盘——X-C10-1：§3.4 写白名单增 `setControlMode`（模式写入唯一入口）；§3.6 UnitStatsQuery 增 `setControlMode(u, mode)`＋`controlMode_changed{unitId, mode}` 事件面（P4 挂件刷新）；§6.2 契约表增「模式写入」行（C2→C10/P3/P4）。X-C10-2：§3.1 controlMode 字段注释修订为「DEFENDER 默认 AUTO（决策②常规交火托管，C10 v1.0 §2.2 裁定）」。§7.2 C10 消费行更新为已落盘＋v1.1.3 消费确认；§7.3 增 C10 协调记录（C10 OQ-6 关闭）。结构零改动（写入面为既有字段宿主的方法化，无新枚举无新迁移） |
+| v1.1.4-draft | 2026-09-22 | **GW-VS-04 收口批 K7（主理人批准就地执行，文策渊执笔）**：§3.2 `UnitTemplate` 结构补列 **`costKey`** ／ **`lootKey`** 两个**查表键桥字段**（units.json → economy.json 的 camelCase 查表键，供 C6 报价／缴获直取、零归一），并加「性质」段明写「**本声明为补记既有事实，非新增定义**」（两字段实现侧已逐模板落值并消费，此前仅缺 GDD 侧声明），附权威指向 `F3-data-tables.md` §3.2①（v1.0.2）与 `C6-economy.md` §3.4（v1.0.4）。**硬约束遵守**：只补这两个字段声明＋指向，**未触碰任何接口签名、未触碰 §3.6 `UnitStatsQuery` 契约表、未触碰任何 `speed(u)` 相关定义**（K3b 域，禁止混批）。零数值改动 |

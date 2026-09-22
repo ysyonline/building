@@ -1,6 +1,6 @@
 # C6 粮饷经济系统 · GDD
 
-> **状态**：v1.0.3-draft（2026-09-21）｜ GW-P2-006 ｜ GDD 撰写序列 #7a
+> **状态**：v1.0.4-draft（2026-09-22）｜ GW-P2-006 ｜ GDD 撰写序列 #7a ｜ **v1.0.4 = VS-4 挂账 5 键名勘误（主理人裁定 C：PurchaseItem 单向收干为 F3 表键 camelCase，大小写映射职责归 C7 命令解析层）＋ VS-4 挂账 2 `reinforcementSchedule` 空表结构位说明（裁定 E）；落点 §2.6 / §3.4 / §3.5；零数值改动**
 > **产出**：文策渊（design-strategist）
 > **上游依据**：`design/gdd/systems/F2-phase-scheduler.md` v1.0.3（§2.2-D②/D③ 结算窗口、§3.2 DPhaseLedger.incomeSettled 钩子、F2.7 援军顺延、E13 堆积、E14 终局数据包格式约定、§6.2 收入/援军钩子契约行、§3.3 battle_won/lost 载荷；v1.0.3=撰写期勘误 D③ 括注引用，零实质变更）｜ `design/gdd/systems/C2-units.md` v1.1.1（§2.4 双资源正交口径、§2.7 死亡事件与抚恤挂点、§2.6 督队赏格字段归属、§6.2 eliminate 事件契约、§10 OQ-4）｜ `design/gdd/systems/C3-defense-facilities.md` v1.0.3（§2.6 修理仅 A 相位/费用归 C6/repair 接口语义/DESTROYED 重建、E5 设施受击面）｜ `design/gdd/systems/C5-combat-resolution.md` v1.1.1（E13 killed 单点事件/C5.7 结算序）｜ `design/gdd/systems/C8-xiongnu-ai.md` v1.0（§9 七项转派走查）｜ 概念稿定稿 v1.0（§5 单一资源三源口径、P4 经济压力设计意图）｜ `design/systems-breakdown.md` v1.0（§1.2 C6 职责、§2.2 链 B、§4 C6=数值载体、§6.2 督队裁定）
 > **范围红线**：本文只裁 C6——单一资源「粮饷」的资金模型：收入三源（屯田/击杀缴获/烽燧补给线）的结算时点与入账序、缴获数值基准、守方援军时刻表的数据契约、支出侧费用查询/扣费契约（供 C7 消费）、终局 BattleEndReport 格式（F2-E14 数据包的 C6 侧、X2 交割面）。**不写**建造/修理/部署的指令校验与流程（C7）、相位窗口与 D 相位时序权威（F2）、killed 事件的产生与伤害结算（C2/C5）、敌军波次构成与入场时刻表（C9）、继承与关间结转规则（X2）、任何数值定值（F3 economy.json 表宿主）。
@@ -132,6 +132,7 @@ D②：流水按 killSeq 序汇总 → 入余额 → 流水清零、累计入 ba
 - **落点**：ReinforceEntry.dropZoneRef 引用关卡部署区（V12 可达性校验覆盖的区域），F2 据此调 F1 placeUnit；C6 不落点、不调 F1。
 - **堆积兜底**（F2-E13 联动）：时刻表只读、顺延不回写表；条目零丢失承诺（§5-E9）；关卡表侧义务=援军总量与部署区容量自洽（关卡数据评审项）。
 - MVP 援军内容恒 garrison_squad（守方唯一兵种），免费到岗（裁定 H）。
+- > [VS-7 勘误/已裁定] **空表结构位说明（主理人裁定 E，2026-09-22；VS-4 挂账 2 回灌，v1.0.4）**：MVP `economy.reinforcementSchedule` **保持空表 `[]`，本轮不填任何条目**。裁定依据三点：①**机制在位**——`ReinforceEntry` 结构（§3.2）、`dueReinforcements`（§3.4）、F2 D③ 顺延队列与首位重试、落点满进 `pendingReinforcements` 的「条目零丢失」承诺（C6-E9）全部已实装，并已以运行时注入条目方式验证整条顺延链（VS-4 报告 §1.4 / §2「D 收口 4」实证）；②**内容缺位**——关内援军时刻表的**条目内容**属战役内容设计，权威归 **X2 传承战役 GDD**；经核 X2 v1.0.3 全文（含附录 A/B）**未定义任何 L1/L2 援军时刻表**（`reinforcementSchedule`／`ReinforceEntry`／「援军」检索零命中，X2 既有 `rosterPool` 为**关间继承的幸存者池**，与关内援军时刻表是两回事），故本轮无内容可回灌；③**后续动作**——登记为 **VS-7 内容挂账**：若战役层决定需要关内援军，补 `ReinforceEntry[]` 即零结构改动生效；若维持 MVP 无援军，则在 VS-7 明确「空表＝设计意图」并闭账。
 
 ---
 
@@ -169,10 +170,12 @@ interface ReinforceEntry {
   entryId: string;
   dueTurn: number;                        // 原定到岗回合（表数据只读，顺延不回写）
   templateId: UnitTemplateId;             // MVP 恒 'garrison_squad'
-  dropZoneRef: string;                    // 关卡部署区引用（V12 校验可达）
+  dropZoneRef: string;                    // 关卡部署区引用（V12 校验可达）— ⚠ MVP 未消费，见下方限制声明
   source: 'C6_REINFORCE';                 // 枚举位（敌军波次归 C9 域，不经此结构）
 }
 ```
+
+> [VS-7 勘误/已裁定] **`dropZoneRef` 是未消费的保留字段（主理人第三轮终裁，v1.0.4；VS-4 挂账 2 衍生）**：MVP 的到岗落点逻辑**不读 `dropZoneRef`**——`F2.placeReinforcement` 的落点＝**全部 deployZones 的并集中的首个容量未满格**（与 C7 部署寻址同源），`dropZoneRef` 仅作为**结构保留位**存在于条目中（供 Alpha「分区援军／指定集结点」扩展时零结构改动启用）。**契约限制必须写明**：①关卡数据侧**不得**假设「填写 `dropZoneRef` 即可指定落点」——当前填任何值都不改变落点；②X2（传承战役）侧若在 VS-7 补 L1/L2 援军时刻表（§4-N1），**不得**依赖本字段表达「援军从哪个门进来」这类内容设计，除非同批启用消费侧（改动面＝F2 `placeReinforcement` 落点选择 ＋ 落点满时的分区顺延语义，属 Alpha 级扩展，不进 MVP）。
 
 ### 3.3 终局数据包（BattleEndReport v1，F2-E14 的 C6 侧格式）
 
@@ -201,11 +204,13 @@ interface BattleEndReport {               // 随 battle_won/lost payload.stats �
 
 ### 3.4 对外接口（费用消费面＋结算钩子）
 
+> [VS-7 勘误/已裁定] **键名形状单向收干（主理人裁定 C，2026-09-22；VS-4 挂账 5 回灌，v1.0.4）**：`PurchaseItem` 携带的一律是 **F3 数据表键**，不再出现 SCREAMING_CASE 枚举字面。**设施侧规范键 = camelCase**（`bedCrossbow` / `rollingStock`；宿主 `facilities.json` F3 §3.2② 与 `economy.json` `cost.build.*` F3 §3.2⑤）；**单位侧 `templateId` 维持 `units.json` 命名空间形状 `garrison_squad`（snake_case，C2 §3.2 结构权威）**——两个命名空间各自收干到自己的宿主形状，**不做跨命名空间强行统一**。改动前已完成 `design/gdd/` 与 `design/spikes/` 全量检索，受影响引用清单见 `design/reviews/GW-VS-04-consolidation.md` §1.1。
+
 ```ts
 type PurchaseItem =
-  | { kind: 'BUILD_FACILITY'; facilityKind: 'BED_CROSSBOW' | 'ROLLING_STOCK' }
+  | { kind: 'BUILD_FACILITY'; facilityKind: 'bedCrossbow' | 'rollingStock' }   // 表键 camelCase（F3 §3.2②/⑤）
   | { kind: 'REPAIR_FACILITY'; facilityId: FacilityId; deltaHp: number }
-  | { kind: 'DEPLOY_UNIT'; templateId: 'garrison_squad' }
+  | { kind: 'DEPLOY_UNIT'; templateId: 'garrison_squad' }                       // units.json 命名空间（snake_case）
   | { kind: 'WALL_REPAIR'; deltaHp: number };        // 键位预留（修墙指令面归 C7，OQ-3）
 
 interface EconomyQuery {                  // 任何人可读（P3/P4/C7/C10 报价显示）
@@ -228,6 +233,12 @@ interface IncomeReport {
 }
 ```
 
+> [VS-7 勘误/已裁定] **大小写映射职责（裁定 C 第二半，v1.0.4）**：命令面（C7 六指令）若继续以 SCREAMING_CASE 枚举字面表达设施种类（`'BED_CROSSBOW'` / `'ROLLING_STOCK'`），**大小写归一的职责归 C7 命令解析层**——在「命令 → `PurchaseItem` 组装」这一步一次性完成映射；**C6 经济查表层不得再做任何归一化**：`quote` / `charge` 只接受表键形状，表内无键＝不可购买，按 F3 INV-F3-4 走 fail-fast（禁静默降级、禁别名兼容；VS-4 期实现侧的键名桥 `matchKey` 是过渡兼容物，映射职责上移 C7 后应在 VS-7 移除，不得长期双口径共存）。
+>
+> **命名空间分界（本轮不改、登记备查）**：设施类标识符在项目中存在两套**各自合法**的形状——①**实体／命令面枚举**＝SCREAMING_CASE（C3 §3.1 `Facility.kind`、C7 §3.1 `BUILD_FACILITY.facilityKind`、C5 §6.2 `StrikeRequest.kind`），归各自结构权威 GDD；②**F3 查表键**＝camelCase（§3.5 `cost.build.*`、F3 §3.2②），归 F3。二者分界由 C7 解析层承接。**是否跨 GDD 统一枚举字面**属 VS-7 勘误候选、需主理人裁定——本轮不统一，理由：统一面涉及三份已定稿 GDD 的实体契约与结算请求枚举，超出「VS-4 挂账 5」勘误批的最小改动授权。
+>
+> **单位侧的等价机制（主理人裁定 F，v1.0.4 补注）**：DEPLOY_UNIT 的「snake_case `templateId` → camelCase 报价键」这一缝，由 `units.json` 模板新增的 **`costKey`** 字段显式承载（与既有 `lootKey` 同构）——报价侧按 `cost.deploy[tpl.costKey]` 直取，C6 查表层同样**零归一**。字段定义已收编进 `F3-data-tables.md` §3.2①（v1.0.2）；C2 §3.2 UnitTemplate 结构同步补列两字段属 VS-7 勘误候选（本次未动 C2）。由此，C6 与 F3 两侧的单位/设施查表键分界均为**显式字段**，不再依赖实现侧键名桥。
+
 ### 3.5 F3 `economy.json` 键清单（数值载体，本文零硬编码；表改动需过平衡评审）
 
 | 键 | 含义 | MVP 工作假设 ⚠ |
@@ -245,7 +256,7 @@ interface IncomeReport {
 | `cost.deploy.garrisonSquad` | 戍卒小队部署价 | 待灰盒 |
 | `cost.wallRepair.perHp` | 修墙单价（键位预留，OQ-3） | 待灰盒 |
 | `cost.dismantleRefundRatio` | 拆除退款比例（Alpha 结构位；MVP 不设=恒零） | 待灰盒/Alpha——**启用即重开「无退款通道」评审，与 C7 OQ-4 互见** |
-| `reinforcementSchedule`（per-level 段） | 守方援军时刻表（ReinforceEntry[]） | 关卡数据 |
+| `reinforcementSchedule`（per-level 段） | 守方援军时刻表（ReinforceEntry[]） | 关卡数据 ｜ **[VS-7 勘误/已裁定] 结构位说明（裁定 E，v1.0.4）：MVP 恒空表 `[]`；D③ 顺延链机制全量在位，条目内容归 X2 传承战役（X2 v1.0.3 未定义），VS-7 内容挂账；详见 §2.6** |
 | `treasuryCarryRule` | 关间结转规则枚举位（X2 域，MVP 不消费） | X2 裁定（OQ-2） |
 | `supply.nodes[]` / `farm.cells` | Alpha 结构位（MVP 空置/无消费者） | Alpha（OQ-5） |
 
@@ -466,4 +477,5 @@ interface IncomeReport {
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-006 序列 #7a）：单一资源资金模型；五主裁点成文——①D② 固定结算序 farm→supply→loot＋缴获双段式（击杀流水登记/D② 入账）；②缴获按兵种固定值（督队赏格键位承接 C2 OQ-4）；③④补给线/屯田双简化裁定（固定收入＋显式 Alpha 恢复位）；⑤破产=禁止下单（无欠饷）＋援军免费裁定；BattleEndReport v1（X2 回填位标定）；EconomyQuery/Command 交割面（→C7 单列）；EconomySettlementApi 闭合 F2 §6.2 钩子行；零 F4 消费确定性红线（INV-C6-5）；边缘情况 E1-E11；上游契约走查零冲突（§7.3，含 F2 §2.2-D③ 括注笔误上报） |
 | v1.0.1-draft | 2026-09-21 | F2 勘误联动升引（主理人核验代提）：F2 §2.2-D③ 括注笔误经主理人核实（E6=留梯单位行动槽，援军顺延本体是 E13），F2 落 v1.0.3 勘误；本文 header 上游依据/对齐状态/SC-3/§7.3 引用同步升 F2 v1.0.3，零实质变更 |
 | v1.0.2-draft | 2026-09-21 | **C7 互审合流批 008（主理人授权执行）**：①§2.3「无退款通道」措辞精化——钱/世界两层辨析（已付费用不可撤销退回 vs 拆除/重置语义归 C7），-2-2 走查发现 1 采纳；②§2.1「余额=D② 后快照」→「实时值（A 相内无收入源，恒定基准）」，-2-2 走查发现 2 采纳；③§3.5 补 `cost.dismantleRefundRatio` 键行（宿主=economy.json，启用即重开退款裁定，与 C7 OQ-4 互见）；④§10 OQ-3/OQ-4 销账（文案=C7 v1.0 §9.3 原文，合流批）；⑤§7.3 补 C7 v1.0.1 互审零冲突行＋header 对齐状态同步（含 C5 v1.2 引用升版） |
+| v1.0.4-draft | 2026-09-22 | **VS-4 挂账回灌批（GW-VS-04 收口，主理人裁定 C＋E）**：①§3.4 `PurchaseItem` 键名单向收干——设施侧 `facilityKind` 由 SCREAMING_CASE 枚举字面（`'BED_CROSSBOW'`/`'ROLLING_STOCK'`）改为 F3 表键 camelCase（`'bedCrossbow'`/`'rollingStock'`），单位侧 `templateId: 'garrison_squad'` 维持 `units.json` 命名空间形状不动；同节补「大小写映射职责归 C7 命令解析层、C6 查表层不得再归一化」与「实体/命令面枚举 vs F3 查表键两套形状的命名空间分界」两段；②§2.6 补 `reinforcementSchedule` 空表结构位说明（机制在位＋内容归 X2＋VS-7 内容挂账）；③§3.5 键清单 `reinforcementSchedule` 行同步注记；④**§3.2 补 `dropZoneRef` 未消费保留字段限制声明**（MVP 落点＝全 deployZones 并集首容格，填值不改落点；X2 补时刻表时不得依赖本字段表达落点语义）；⑤**§3.4 补注裁定 F**（`costKey`／`lootKey` 查表键桥字段，与设施侧命名空间分界等价，F3 §3.2① 已收编）。**零数值改动**（§3.5 全表键值、§4 全公式、INV-C6-1~5 全部未动）；改动前已完成 `design/gdd/`＋`design/spikes/` 全量检索，受影响引用清单见 `design/reviews/GW-VS-04-consolidation.md` §1.1 |
 | v1.0.3-draft | 2026-09-21 | **X2 回执批（GW-P2-013a，主理人授权代落）**：①§10 OQ-2 销账——treasuryCarryRule 终裁 B 案（每关 F3 固定初值，X2 v1.0 §2.1-D；主理人维持 X2 裁定），C 案转 Alpha 占位（treasuryCarry 字段位已留）；②重募费用键销账——MVP 零新费用键（幸存者免费＋阵亡走 C7 DEPLOY 全价），campaign.retrain.* Alpha 预留挂 F3（X2 §2.1-C3）；③BattleEndReport v1.1 回填注记——§3.3 处标注四追加字段（survivorRoster/facilityCarry/wallCarry/treasuryCarry，追加式零改动，定义权 X2 §2.2）；④§7.2 X2 行与 §9.2 挂账 #3/#5 同步刷新。零结构性改动（C6 全部接口/键位/结算语义不变） |

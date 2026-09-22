@@ -1,6 +1,6 @@
 # F3 数值配置表系统 · GDD
 
-> **状态**：v1.0.1（2026-09-22，互审合流定稿）｜ GW-P2-015-F3 ｜ Phase 2 GDD 基建补课批（与 F4 并行）
+> **状态**：v1.0.2（2026-09-22，GW-VS-04 收口批：§3.2① 增 `costKey`／`lootKey` 查表键桥字段收编，主理人裁定 F）｜ 前序 v1.0.1（2026-09-22，互审合流定稿）｜ GW-P2-015-F3 ｜ Phase 2 GDD 基建补课批（与 F4 并行）
 > **产出**：文策渊（design-strategist-f3）
 > **上游依据**：`design/systems-breakdown.md` v1.0（§1.1 F3 职责行「承载兵种/设施/公式系数/波次构成全部数值的引擎无关外置表，两案通用」、§4 依赖图、§6 数值载体纪律「拥有表，改动需过平衡评审；消费方禁止私藏数值」）｜ C2 v1.1.3（§3.2 UnitTemplate 结构权威＋§7/§8.4 units.json 键位与初值汇总）｜ C3 v1.0.3（§3.2 facilities.json/weapons.json 键清单）｜ C5 v1.2（§2.4 修正键、§数值键清单 combat.json/weapons.json 宿主、§8.4 平衡联动注记）｜ C6 v1.0.3（§3.5 economy.json 键清单——本文 economy.json 宿主形状的权威依据）｜ C7 v1.0.2（裁定 G：`dz.budgetRef` MVP 不消费——R-1 勘误背书）｜ C8 v1.0.2（§3.2 ai-scripts.json 键清单、§8.4 权重初值汇总）｜ C9 v1.0（§2.2 WaveTable 模式、§3.1 三关波次表、§7.3 F3 数值宿主行）｜ C10 v1.0.1（§3.2 defense-scripts.json 键清单）｜ F1 v1.4.3（§4.5 TerrainRules 键清单、F1.7/F1.9 容量表宿主、§9.1 LevelMap 示例的 waveRef/terrainRulesRef/capacityTableRef/durabilityRef/budgetRef 引用面）｜ F2 v1.0.4（§1.4 LEVEL_INIT 时序、F2-E12 拒存档边界）｜ X2 v1.0.2（§3.2 F3 键位声明四键、§7.3 F3/F4 未落盘处理声明、§9.12 收编义务、附录 A.3 SaveDocument 分部结构）｜ X3 v1.0（§3.1 tutorial.json schema 与「宿主目录归数据管线惯例」承诺、§9.8/§9.11-A1 引用先例）
 > **范围红线**：本文只裁 F3——**表文件清单与命名、加载与校验纪律、键位收编与冲突裁定、版本化与平衡评审流程**。**不写**任何机制语义（已由 C 系 GDD 定稿，本文逐字承接不重裁）、任何数值定值（全部键值 ⚠ 待灰盒，本文零硬编码）、F4 随机源内部（另一 GDD 并行）、磁盘格式选型（JSON 已定，不争论）、编辑器（X4 Alpha）、X5 对拍配置细节（Alpha 占位）。
@@ -157,7 +157,14 @@ LEVEL_INIT(Ln)（X3 §2.2 时序图零改动）
 
 ### 3.2 逐表键位收编明细
 
-**① `units.json`（结构权威 C2 §3.2）**：`templateId`（枚举键：五兵种档）｜`faction`｜`baseHp`｜`baseMp`｜`baseAp`｜`layerAccess`｜`footprint`｜`canBoardLadder`｜`attackCapable`｜`meleeReach`｜`mpZeroOnAttack`｜`auraStrategyId`（→策略注册表）｜`auraRadius`｜Alpha 加列位（C11 士气列，C2-E16 演练位）。初值汇总=C2 §8.4（⚠ 全表待灰盒）→ 入首轮评审清单。
+**① `units.json`（结构权威 C2 §3.2）**：`templateId`（枚举键：五兵种档）｜`faction`｜`baseHp`｜`baseMp`｜`baseAp`｜`layerAccess`｜`footprint`｜`canBoardLadder`｜`attackCapable`｜`meleeReach`｜`mpZeroOnAttack`｜`auraStrategyId`（→策略注册表）｜`auraRadius`｜**`costKey`**（查表键桥，见下）｜**`lootKey`**（查表键桥，见下）｜Alpha 加列位（C11 士气列，C2-E16 演练位）。初值汇总=C2 §8.4（⚠ 全表待灰盒）→ 入首轮评审清单。
+
+> [VS-7 勘误/已裁定] **查表键桥字段（主理人裁定 F，2026-09-22；本文 v1.0.2）**
+> - **`costKey`（本次新增收编）**：`units.json` 每个兵种模板增列 `costKey`——**该模板在 `economy.json` 侧的查表键**（camelCase，如 `garrison_squad` 模板携带 `costKey:'garrisonSquad'`）。C6 经济查表层据此按 `cost.deploy[tpl.costKey]` 直取报价，**零大小写归一、零别名兼容**（表内无键＝不可购买，走 INV-F3-4 fail-fast）。
+> - **`lootKey`（既有实现字段，本次一并收编）**：与 `costKey` **完全同构**——同模板内 `lootKey:'garrisonSquad'` → `loot.perTemplate[lootKey]`，已在实现侧逐模板落值并被 `lootOf()`／缴获登记面消费（`_vs4-app.js` units 表与 `lootOf`），**此前在 GDD 侧无定义**，本次随 `costKey` 一并写入收编明细，消除「实现有、GDD 无」的黑字段。**⚠ 本声明为补记既有事实，非新增定义**（读者勿误认作本轮上新理论；`costKey` 方为新增字段，实现侧落值归 VS-7 K6）。
+> - **命名空间分界由此显式化**：一个模板携带 `templateId`（snake_case，`units.json` 命名空间，C2 §3.2 结构权威）＋ `costKey`／`lootKey`（camelCase，`economy.json` 命名空间）三个键——**两套形状不再靠实现侧键名桥（`matchKey`）隐式弥合**，`matchKey` 于 VS-7 移除（GW-VS-04 §4-K6）。原「同物异形」勘误项 **K4 取消**（已被本字段显式化取代，不留待议项）。
+> - **性质**：`costKey`／`lootKey` 均为**查表键（标识符）**，非平衡数值，不入平衡评审；不改变任何键值与结算语义。
+> - **结构权威侧同步（K7，主理人批准就地执行，已完成）**：`costKey`／`lootKey` 已同步补列进 **`C2-units.md` §3.2 UnitTemplate 结构（v1.1.4）**，含「本声明为补记既有事实，非新增定义」定性与本表指向；C2 侧硬约束＝只补字段声明＋指向，未触 §3.6 `UnitStatsQuery` 契约表与任何 `speed(u)` 定义（K3b 域禁混批）。
 
 **② `facilities.json`（结构权威 C3 §3.2）**：`facility.hp.bedCrossbow`｜`facility.hp.rollingStock`｜`bedCrossbow.range`｜`bedCrossbow.reloadTurns`｜`bedCrossbow.targetPriority`｜`rollingStock.dropRadius`｜`kindAllowed`（C7.4 消费，MVP 两类设施均={RAMPART_WALK}，结构键位可扩）｜Alpha 位。C3 §8.4 初值 → 入评审清单。
 
@@ -424,4 +431,5 @@ F2：加载窗对齐 LEVEL_INIT（§2.2），F2 文件零改动。F4：零调用
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0-draft | 2026-09-21 | 首版（GW-P2-015-F3，基建补课批）：三级归属模型＋确定性数据源不变式（一次性物化/表内容恒常/存档零表内容）＋三级 fail-fast 校验管线＋双版本号与平衡评审流程；表清单总表 14 文件（平衡 12 表含 R-7 新增 beacon.json＋关卡结构 4 文件含 R-6 收编 tutorial.json）；13 份源 GDD 键位全收编（§9.1-§9.10 回执）；七项裁定 R-1～R-7（budgetRef 形态、initialTreasury 键路径、intent-scripts 命名、bedCrossbow.damage 异名、exposedMod 单宿主、tutorial.json 归类、beacon.json 新增）；X2 §9.12 收编义务销账＋首轮平衡评审入册清单（§9.13）；申请位六项（§9.14） |
+| v1.0.2 | 2026-09-22 | **GW-VS-04 收口批（主理人裁定 F，文策渊执笔）**：§3.2① `units.json` 键位收编明细增 **`costKey`**（本次新增：模板在 economy.json 侧的 camelCase 查表键，供 C6 报价直取、零归一）与 **`lootKey`**（既有实现字段、GDD 侧此前无定义，本次一并收编）两个**查表键桥字段**，并立「命名空间分界显式化」段——`templateId`（snake_case，units 命名空间）＋`costKey`/`lootKey`（camelCase，economy 命名空间）三键并存，实现侧键名桥 `matchKey` 于 VS-7 移除；原「同物异形」勘误候选 K4 据此取消。二者为标识符非数值，不入平衡评审。**零数值改动**；待同步项＝C2 §3.2 UnitTemplate 结构补列两字段（VS-7 勘误候选，本次未动 C2） |
 | v1.0.1 | 2026-09-22 | **互审合流勘误（GW-P2-015-FIN-F3，f4 次审 M×2 作者自落＋A6 裁定采纳＋L 级）**：**M-1 表清单计数统一**——全文按物理文件计口径统一「**17 文件＝平衡 13＋关卡结构 4；beacon=第 13 张平衡表**」，§0 导航/§1.3/§2.6/§3.1 标题与类头/§3.3 目录树/§4.3-R7/SC-1 联动改齐（首版「14 文件」标题与目录树「13 文件」口径漂移根除；11→13 增量叙述入 §1.3）；**M-2 tableFingerprint 规范化定死（承重规格，正本落 §2.5）**——规范化=逐表 JSON.parse→键递增排序规范序列化（数字十进制、无空白）→UTF-8，**不采原始字节案**（防 CRLF/BOM/git checkout 漂移）；逐表 `H_i=FNV1a64(canonical_bytes_i)`＋按 §3.1 在册序文件名锚定折叠 `fingerprint=FNV1a64(Σ fileName_i++0x00++H_i)`，输出 16 位小写 hex；哈希原语与 F4 §2.6 同构（引用规格≠机制依赖，双向零依赖不破）；缺字段=「指纹未知」→E6 走 schemaVersion 比对＋告警一次，**禁空串参与比对**；落点 §2.5/INV-F3-2/§6.1/E6/SC-7；**A6 裁定采纳（主理人 2026-09-22）**——meta.tableFingerprint 可选字段落定（此刻进 meta 成本≈0，旧档＋静默改表是重放承诺最深暗坑），§9.14-A6/§9.9/§9.12/§7-F5 行/OQ-1/§6.3/SC-7 改确定语态；**L 级**：§7/§9.12 F4 行「互为前提」→「并列前提」（f3 主审自提 L-4） |
