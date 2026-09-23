@@ -596,7 +596,8 @@ var F1 = (function () {
 var F4 = (function () {
   /* mulberry32（F4 §2.1 规范直译——运算序不得重排，重排破坏逐位一致）+ FNV-1a-32 种子展开（F4.2）。
    * 单流全局游标（裁定 C-1）；游标随档恢复语义留 F5 接缝（本批切片局内一次性）。
-   * 本批只挂载+冒烟；命中过骰 rand('HIT_ROLL') 消费入口 VS-3 接线（C5.2）。 */
+   * 本批只挂载+冒烟；命中过骰 rand('HIT_ROLL') 消费入口 VS-3 接线（C5.2）。
+   * [VS-5·F-1 批] 规范字节流 S（§2.5）＋三接口 snapshot/restore/checksumOf（§3.2）本批落位。 */
   var FNV_OFFSET = 0x811C9DC5, FNV_PRIME = 0x01000193;
   function fnv1a32(bytes) {
     var h = FNV_OFFSET >>> 0;
@@ -625,22 +626,137 @@ var F4 = (function () {
     return t >>> 0;
   }
   var st = { f4Seed: '', cursor: 0, state: 0, logBytes: [] };
-  function init(f4Seed) {                    // 新战局：state=F4.2 展开、cursor=0、log=header-only
+  /* FNV-1a-64（F4 §2.6）：BigInt 参考实现（规范直译）。split-mul 等价实现 fnv1a64Split 同文件导出，
+   * 两者逐位互证（BE-2 双实现要求）由 vs4-check.js VS5-F1 断言块承担。 */
+  function fnv1a64(bytes) {
+    var h = 0xCBF29CE484222325n, P = 0x100000001B3n, M = 0xFFFFFFFFFFFFFFFFn;
+    for (var i = 0; i < bytes.length; i++) {
+      h = h ^ BigInt(bytes[i]);
+      h = (h * P) & M;
+    }
+    return h;
+  }
+  /* split-mul 等价实现（F4 §2.6 BE-2 要求）：16 位四列乘法 + 完整进位传播（h₀·p₀ 64 bit 积的
+   * 高位段是跨列进位的真实来源，禁止只取低位段）。
+   * 列归属（h=c·B³+d·B²+a·B+b，p=g·B³+k·B²+e·B+f，B=2¹⁶，mod 2⁶⁴ 保留低 4 列）：
+   *   col0=b·f ｜ col1=b·e+a·f ｜ col2=b·k+a·e+d·f ｜ col3=b·g+a·k+d·e+c·f
+   * 精确性：列值 ≤4×(2¹⁶−1)²<2³⁰，加进位 <2³¹——JS number 精确域内；归一用 t mod 2¹⁶ 与
+   * ⌊t/2¹⁶⌋（除法），禁 >>>0/<<（ToUint32 截断 >2³² 的列和会丢进位）。 */
+  function fnv1a64Split(bytes) {
+    var M16 = 0xFFFF;
+    var h0 = 0x84222325, h1 = 0xCBF29CE4;      // 偏移基值 0xCBF29CE484222325 拆高低 32 bit
+    var p0 = 0x000001B3, p1 = 0x00000100;      // 素数 0x100000001B3 = 0x00000100·2³² + 0x000001B3（高 32 位=0x100）
+    for (var i = 0; i < bytes.length; i++) {
+      h0 = (h0 ^ bytes[i]) >>> 0;              // xor 只影响低 32 bit（b < 2⁸）
+      var c = (h1 >>> 16) & M16, d = h1 & M16, a = (h0 >>> 16) & M16, b = h0 & M16;
+      var g = (p1 >>> 16) & M16, k = p1 & M16, e = (p0 >>> 16) & M16, f = p0 & M16;
+      var col0 = Math.imul(b, f) >>> 0;
+      var col1 = ((Math.imul(b, e) >>> 0) + (Math.imul(a, f) >>> 0));
+      var col2 = ((Math.imul(b, k) >>> 0) + (Math.imul(a, e) >>> 0) + (Math.imul(d, f) >>> 0));
+      var col3 = ((Math.imul(b, g) >>> 0) + (Math.imul(a, k) >>> 0) + (Math.imul(d, e) >>> 0) + (Math.imul(c, f) >>> 0));
+      var t0 = col0, n0 = t0 % 65536, c0 = (t0 - n0) / 65536;
+      var t1 = col1 + c0, n1 = t1 % 65536, c1 = (t1 - n1) / 65536;
+      var t2 = col2 + c1, n2 = t2 % 65536, c2 = (t2 - n2) / 65536;
+      var t3 = col3 + c2, n3 = t3 % 65536;     // col4+ 进位丢弃（≡ mod 2⁶⁴）
+      h0 = (n0 | (n1 << 16)) >>> 0;
+      h1 = (n2 | (n3 << 16)) >>> 0;
+    }
+    return (BigInt(h1 >>> 0) * 4294967296n) + BigInt(h0 >>> 0);
+  }
+  function hex16(h) {                          // 64 bit → 16 位小写 hex，前导零保留（F4.4）
+    var s = h.toString(16);
+    while (s.length < 16) s = '0' + s;
+    return s;
+  }
+  function buildHeader() {                     // F4 §2.5 header 14B：magic 5B + logVer 1B + seedWord 4B LE + entryCount 4B LE
+    var sw = st.state0;
+    return [0x46, 0x34, 0x4C, 0x30, 0x47,     // "F4L0G"
+            0x01,                              // logSchemaVersion=1
+            sw & 0xFF, (sw >>> 8) & 0xFF, (sw >>> 16) & 0xFF, (sw >>> 24) & 0xFF,   // seedWord LE
+            0, 0, 0, 0];                       // entryCount 占位，由 entryCount() 读实时值
+  }
+  function entryBytes(before, opTagByte) {     // F4 §2.4 条目 10B 定长：opTag 1B + domainTag 1B + cursorBefore/After 各 4B LE
+    var after = before + 1;
+    return [opTagByte & 0xFF,
+            0x01,                              // domainTag=CORE（MVP 恒值；0x02 C8_NOISE 仅编码预留）
+            before & 0xFF, (before >>> 8) & 0xFF, (before >>> 16) & 0xFF, (before >>> 24) & 0xFF,
+            after & 0xFF, (after >>> 8) & 0xFF, (after >>> 16) & 0xFF, (after >>> 24) & 0xFF];
+  }
+  function init(f4Seed) {                      // 新战局：state=F4.2 展开、cursor=0、log=header-only
     st.f4Seed = f4Seed;
     st.state = fnv1a32(utf8Bytes(f4Seed));
+    st.state0 = st.state;                      // 种子展开字 state₀（header.seedWord 与 INV-F4-2 四角互证共用）
     st.cursor = 0;
-    st.logBytes = [];                        // [VS-5] F4 §2.5 规范字节流 S（header 14B + 10B/条）在存档批落位
+    st.logBytes = buildHeader();               // [VS-5·F-1] F4 §2.5 规范字节流 S = header 14B（空流合法）+ 10B/条（rand 追加）
     return st.state;
   }
-  function rand(op) {                        // [0,1)：步进→游标+1→流水追加（append-only，F4-E2）
+  function rand(op) {                          // [0,1)：步进→游标+1→流水追加（append-only，F4-E2）
+    var before = st.cursor;
     st.state = step(st.state);
     st.cursor++;
-    st.logBytes.push(op === 'HIT_ROLL' ? 0x01 : 0x00);
-    return st.state / 4294967296;            // state / 2^32：2 的幂精确除法（跨引擎逐位一致）
+    var proto = entryBytes(before, op === 'HIT_ROLL' ? 0x01 : 0x00);   // 0x00 非法保留：非 HIT_ROLL 一律按保留值记账，消费面唯一入口仍为 HIT_ROLL
+    for (var i = 0; i < proto.length; i++) st.logBytes.push(proto[i]);
+    var n = st.cursor, L = st.logBytes;        // header.entryCount 回写（S 随时自洽——header 参与 checksum，F4.5）
+    L[10] = n & 0xFF; L[11] = (n >>> 8) & 0xFF; L[12] = (n >>> 16) & 0xFF; L[13] = (n >>> 24) & 0xFF;
+    return st.state / 4294967296;              // state / 2^32：2 的幂精确除法（跨引擎逐位一致）
   }
+  function entryCount() { return (st.logBytes.length - 14) / 10; }   // header 14B + 10B/条（F4.5）
   function cursor() { return st.cursor; }
   function seq(n) { var out = []; for (var i = 0; i < n; i++) out.push(rand('HIT_ROLL')); return out; }
-  return { init: init, rand: rand, cursor: cursor, seq: seq, state: function () { return st; }, fnv1a32: fnv1a32 };
+  /* ---- F4 §3.2 三接口（VS-5 存档批前置，缺口 F-1 本批销账）---- */
+  function checksumOf(logBytes) { return hex16(fnv1a64(logBytes)); }   // F4.4：INV-F5-3 对拍原语
+  function snapshot() {                        // F5 S0/S1 落盘取数：F4State 三字段（log 拷贝，防外部误改内部引用）
+    return { cursor: st.cursor, state: st.state, log: st.logBytes.slice() };
+  }
+  function assertChain(logBytes, cursor) {     // INV-F4-1 链自洽 + 结构校验（F4.5），违者 fail-loud（F4-E4/E5：零静默通过）
+    function bad(msg) { throw new Error('[F4 restore 拒载] ' + msg); }
+    if (Object.prototype.toString.call(logBytes) !== '[object Array]' || logBytes.length < 14) bad('S 缺失或短于 header 14B');
+    var MAGIC = [0x46, 0x34, 0x4C, 0x30, 0x47];
+    for (var i = 0; i < 5; i++) if (logBytes[i] !== MAGIC[i]) bad('magic 非 "F4L0G"（非本系统流水/误拼接）');
+    if (logBytes[5] !== 0x01) bad('logSchemaVersion 非 1');
+    if ((logBytes.length - 14) % 10 !== 0) bad('S 长度非 header14+10B/条 整倍数（截断/插删）');
+    var n = (logBytes.length - 14) / 10;
+    var ec = (logBytes[10] | (logBytes[11] << 8) | (logBytes[12] << 16) | (logBytes[13] << 24)) >>> 0;
+    if (ec !== n) bad('header.entryCount=' + ec + ' ≠ 实际条目数 ' + n);
+    var swBytes = buildHeaderFrom(logBytes);
+    for (var j = 6; j < 10; j++) if (logBytes[j] !== swBytes[j]) bad('header.seedWord 与 f4Seed 展开字不符（跨档/换种子）');
+    var prevAfter = 0;
+    for (var k = 0; k < n; k++) {
+      var o = 14 + k * 10;
+      if (logBytes[o] !== 0x01) bad('条目 ' + k + ' opTag 非 HIT_ROLL（0x00 非法保留值不得入流）');
+      if (logBytes[o + 1] !== 0x01) bad('条目 ' + k + ' domainTag 非 CORE');
+      var cb = (logBytes[o + 2] | (logBytes[o + 3] << 8) | (logBytes[o + 4] << 16) | (logBytes[o + 5] << 24)) >>> 0;
+      var ca = (logBytes[o + 6] | (logBytes[o + 7] << 8) | (logBytes[o + 8] << 16) | (logBytes[o + 9] << 24)) >>> 0;
+      if (ca !== (cb + 1) >>> 0) bad('条目 ' + k + ' cursorAfter ≠ cursorBefore+1');
+      if (cb !== prevAfter) bad('条目 ' + k + ' cursorBefore=' + cb + ' ≠ 前条 after=' + prevAfter + '（链断裂）');
+      prevAfter = ca;
+    }
+    if ((prevAfter >>> 0) !== (cursor >>> 0)) bad('末条 cursorAfter=' + prevAfter + ' ≠ F4State.cursor=' + cursor);
+    if (cursor >= 4294967296) bad('cursor ≥ 2^32（u32 回绕=编程错误，F4-E1 fail-loud）');
+  }
+  function buildHeaderFrom(logBytes) {         // 以 logBytes[6..9] 为 seedWord 槽位重建期望 header（供比对）
+    var sw = (logBytes[6] | (logBytes[7] << 8) | (logBytes[8] << 16) | (logBytes[9] << 24)) >>> 0;
+    return [0, 0, 0, 0, 0, 0, sw & 0xFF, (sw >>> 8) & 0xFF, (sw >>> 16) & 0xFF, (sw >>> 24) & 0xFF, 0, 0, 0, 0];
+  }
+  function restore(s, f4Seed) {                // F5 读档恢复：先 INV-F4-1/2 校验，后 O(1) 直读（打过的骰子不重摇）
+    if (!s || typeof s.cursor !== 'number' || typeof s.state !== 'number' || !s.log) throw new Error('[F4 restore 拒载] F4State 三字段（cursor/state/log）缺失');
+    assertChain(s.log, s.cursor);
+    var expect0 = fnv1a32(utf8Bytes(f4Seed));  // INV-F4-2 四角互证：state₀=expand(seed) ∧ header.seedWord=state₀ ∧ step^cursor(state₀)=state
+    var sw = (s.log[6] | (s.log[7] << 8) | (s.log[8] << 16) | (s.log[9] << 24)) >>> 0;
+    if (sw !== expect0) throw new Error('[F4 restore 拒载] header.seedWord 0x' + sw.toString(16) + ' ≠ expand(f4Seed) 0x' + expect0.toString(16));
+    var replayed = expect0;
+    for (var i = 0; i < s.cursor; i++) replayed = step(replayed);
+    if (replayed !== (s.state >>> 0)) throw new Error('[F4 restore 拒载] 四角互证失败：step^cursor(state₀) 0x' + replayed.toString(16) + ' ≠ state 0x' + (s.state >>> 0).toString(16));
+    st.f4Seed = f4Seed;
+    st.state0 = expect0;
+    st.state = s.state >>> 0;
+    st.cursor = s.cursor >>> 0;
+    st.logBytes = s.log.slice();
+    return st.state;
+  }
+  return { init: init, rand: rand, cursor: cursor, seq: seq, state: function () { return st; }, fnv1a32: fnv1a32,
+           fnv1a64: fnv1a64, fnv1a64Split: fnv1a64Split, checksumOf: checksumOf, snapshot: snapshot, restore: restore,
+           hex16: hex16, entryCount: entryCount };
 })();
 
 /* ============================================================

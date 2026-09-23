@@ -631,6 +631,119 @@ ok('VS4-D4 E2E 扩展：注入建设后全链路 40 回合内仍必收敛终局 
   return (s.phase === 'END_WIN' || s.phase === 'END_LOSE') && illegal === 0 && treasuryMin >= 0;
 })(), '经济注入不破坏终局收敛（可玩性底线）· 破产保护 INV-C6-1');
 
+/* ============================================================
+ * 第二部分：VS5-F1 断言块 —— F4 §2.5 规范字节流 S + §3.2 三接口（VS-5 存档批前置）
+ * 结构权威 F4 GDD v1.0.1；缺口 F-1 销账（vs4-tech-adjudication §5.4-F-1）。
+ * 锚定独立测试向量（非自证）：FNV-1a-64("foobar")=85944171f73967e8（FNV 官方向量）。
+ * ============================================================ */
+console.log('\n[VS5-F1 · F4 规范字节流 + 三接口（存档批前置）]');
+
+ok('VS5-F1.1 FNV-1a-64 双实现互证（BE-2）：BigInt 参考版与 split-mul 版在已知官方向量 + 300 随机字节串上逐位一致', (function () {
+  var utf8 = function (s) {                 // 纯 ASCII 手工编码：vm sandbox 无 TextEncoder，且全部夹具串限 ASCII
+    var out = [], i;
+    for (i = 0; i < s.length; i++) out.push(s.charCodeAt(i) & 0xFF);
+    return out;
+  };
+  var cases = [[], [0x61] /* "a" */, utf8('foobar'), utf8('vs-l1-seed-01'), utf8('DEADBEEF')];
+  var i, j;
+  for (i = 0; i < 300; i++) {
+    var arr = [];
+    for (j = 0; j < 1 + (i % 64); j++) arr.push((i * 37 + j * 11) & 0xFF);   // 确定性伪随机（不用 F4 本流，防自噬）
+    cases.push(arr);
+  }
+  for (i = 0; i < cases.length; i++) {
+    if (F4.hex16(F4.fnv1a64(cases[i])) !== F4.hex16(F4.fnv1a64Split(cases[i]))) return false;
+  }
+  return F4.hex16(F4.fnv1a64(utf8('foobar'))) === '85944171f73967e8';        // 官方已知向量锚定
+})(), '官方向量 foobar=85944171f73967e8 锚定 · 300 确定性伪随机串双实现逐位一致');
+
+ok('VS5-F1.2 S 形状（F4 §2.5）：init 即 header-only 14B（magic "F4L0G" + logVer=1 + seedWord LE + entryCount=0），空流合法', (function () {
+  F4.init(TABLES.f4Seed);
+  var s = F4.state();
+  var expSw = F4.fnv1a32((function () { return Array.prototype.slice.call(new TextEncoder().encode(TABLES.f4Seed)); })());
+  return s.logBytes.length === 14 &&
+         s.logBytes[0] === 0x46 && s.logBytes[1] === 0x34 && s.logBytes[2] === 0x4C && s.logBytes[3] === 0x30 && s.logBytes[4] === 0x47 &&
+         s.logBytes[5] === 0x01 &&
+         s.logBytes[6] === (expSw & 0xFF) && s.logBytes[7] === ((expSw >>> 8) & 0xFF) &&
+         s.logBytes[8] === ((expSw >>> 16) & 0xFF) && s.logBytes[9] === ((expSw >>> 24) & 0xFF) &&
+         s.logBytes[10] === 0 && s.logBytes[11] === 0 && s.logBytes[12] === 0 && s.logBytes[13] === 0 &&
+         F4.entryCount() === 0;
+})(), 'magic=F4L0G · logVer=1 · seedWord=expand(seed) 小端 · entryCount=0（空流 checksum 恒可算 F4 §2.5）');
+
+ok('VS5-F1.3 条目 10B 定长与链自洽（F4.5）：rand×5 后 14+50B，逐条 opTag=0x01/domainTag=0x01/before→after 链无缝且末 after=cursor', (function () {
+  F4.init(TABLES.f4Seed);
+  var N = 5, i;
+  for (i = 0; i < N; i++) F4.rand('HIT_ROLL');
+  var L = F4.state().logBytes;
+  if (L.length !== 14 + 10 * N || F4.entryCount() !== N || F4.cursor() !== N) return false;
+  var prevAfter = 0;
+  for (i = 0; i < N; i++) {
+    var o = 14 + i * 10;
+    if (L[o] !== 0x01 || L[o + 1] !== 0x01) return false;                    // opTag=HIT_ROLL · domainTag=CORE
+    var cb = (L[o + 2] | (L[o + 3] << 8) | (L[o + 4] << 16) | (L[o + 5] << 24)) >>> 0;
+    var ca = (L[o + 6] | (L[o + 7] << 8) | (L[o + 8] << 16) | (L[o + 9] << 24)) >>> 0;
+    if (cb !== i || ca !== i + 1) return false;                              // 链自洽：before=i, after=i+1
+    prevAfter = ca;
+  }
+  return prevAfter === F4.cursor() && (L[10] | (L[11] << 8)) === N;          // header.entryCount 同步回写
+})(), 'S=header14+10B/条 · e.after=e.before+1 ∧ e[i+1].before=e[i].after ∧ cursor=eₙ.after（F4.5 全式）');
+
+ok('VS5-F1.4 checksum（F4.4）：checksumOf(S)=hex16(FNV1a64(S))，确定性可复现，且对 1 字节差异敏感', (function () {
+  F4.init(TABLES.f4Seed);
+  F4.seq(8);
+  var S = F4.snapshot().log;
+  var c1 = F4.checksumOf(S), c2 = F4.checksumOf(S.slice());
+  var S2 = S.slice(); S2[20] ^= 0x01;
+  var c3 = F4.checksumOf(S2);
+  F4.init(TABLES.f4Seed);
+  var ce = F4.checksumOf(F4.state().logBytes);
+  return c1 === c2 && c1.length === 16 && /^[0-9a-f]{16}$/.test(c1) && c1 !== c3 && ce.length === 16;
+})(), '幂等 · 16 位小写 hex 前导零保留 · 单字节翻转必变签名 · 空流良定义');
+
+ok('VS5-F1.5 snapshot/restore 往返（BE-6「打过的骰子不重摇」）：restore 后继续同指令产出与原会话尾逐位一致 ∧ O(1) 直读不重放步进', (function () {
+  F4.init(TABLES.f4Seed);
+  F4.seq(10);
+  var snap = F4.snapshot();
+  var tail1 = F4.seq(6).map(function (v) { return v.toFixed(12); }).join(',');
+  F4.init('other-seed');                                                      // 换种子污染现场
+  F4.restore(snap, TABLES.f4Seed);
+  var tail2 = F4.seq(6).map(function (v) { return v.toFixed(12); }).join(',');
+  var st = F4.state();
+  return tail1 === tail2 && st.cursor === 16 && st.f4Seed === TABLES.f4Seed &&
+         F4.state().logBytes.length === 14 + 10 * 16;
+})(), 'restore(snapshot) 后同指令 → 骰序逐位一致（C5-E15 兑现）· 直读恢复非重导出');
+
+ok('VS5-F1.6 损坏注入矩阵（BE-3 子集）：翻条目字节/改 cursor 不改 log/截断末条/entryCount 篡改/换 seed 五路径全拒载零静默（F4-E5）', (function () {
+  F4.init(TABLES.f4Seed);
+  F4.seq(4);
+  var snap = F4.snapshot();
+  function rejected(mut) {
+    var l = snap.log.slice(); mut(l);
+    try { F4.restore({ cursor: snap.cursor, state: snap.state, log: l }, TABLES.f4Seed); return false; }
+    catch (e) { return String(e.message).indexOf('[F4 restore 拒载]') === 0; }   // 必须 fail-loud 带标准前缀
+  }
+  var okFlip = rejected(function (l) { l[20] ^= 0xFF; });                      // 翻条目字节 → 链/结构破坏
+  var okCur = (function () {                                                    // 改 cursor 不改 log
+    try { F4.restore({ cursor: snap.cursor + 1, state: snap.state, log: snap.log.slice() }, TABLES.f4Seed); return false; }
+    catch (e) { return true; }
+  })();
+  var okTrunc = rejected(function (l) { l.length -= 10; });                     // 删末条
+  var okCount = rejected(function (l) { l[13] = 9; });                          // entryCount 篡改
+  var okSeed = (function () {                                                   // 换 seed 不换 log（seedWord 绑定 F4.5 末项）
+    try { F4.restore(snap, 'another-seed'); return false; }
+    catch (e) { return true; }
+  })();
+  return okFlip && okCur && okTrunc && okCount && okSeed;
+})(), '全部路径抛 [F4 restore 拒载]（F4-E4 必选分部纪律：缺字段/脏档零静默通过）');
+
+ok('VS5-F1.7 INV-F4-2 四角互证：step^cursor(expand(seed))=state 断言在位——state 单点篡改必被拒载', (function () {
+  F4.init(TABLES.f4Seed);
+  F4.seq(7);
+  var snap = F4.snapshot();
+  try { F4.restore({ cursor: snap.cursor, state: (snap.state + 1) >>> 0, log: snap.log.slice() }, TABLES.f4Seed); return false; }
+  catch (e) { return String(e.message).indexOf('四角互证') >= 0; }
+})(), 'seed/state/cursor/log 四者分别篡改后单点自洽不可过（校验模式断言随 restore 常开）');
+
 /* ---------- 汇总 ---------- */
-console.log('\n== 结果：' + pass + ' PASS / ' + fail + ' FAIL（21 回归 + 19 VS-4 新增）==');
+console.log('\n== 结果：' + pass + ' PASS / ' + fail + ' FAIL（21 回归 + 19 VS-4 新增 + 7 VS5-F1 新增）==');
 process.exitCode = fail ? 1 : 0;
