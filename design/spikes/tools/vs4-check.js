@@ -744,6 +744,126 @@ ok('VS5-F1.7 INV-F4-2 四角互证：step^cursor(expand(seed))=state 断言在�
   catch (e) { return String(e.message).indexOf('四角互证') >= 0; }
 })(), 'seed/state/cursor/log 四者分别篡改后单点自洽不可过（校验模式断言随 restore 常开）');
 
+ok('VS5-F2.1 battle_won 携带 stats：payload.stats 与 endReportFrozen().stats 同一冻结结构逐键一致（真实判胜链 D④）', (function () {
+  fresh();
+  var seen = []; F2.bus.on('battle_won', function (p) { seen.push(p); });
+  F2.beginPhase('A', 'chk');
+  var buy = C7.exec({ type: 'DEPLOY_UNIT', cellId: '7_1_1', templateId: 'garrison_squad' });   // 制造 spentTotal（资金链已入账）
+  F2.beginPhase('B', 'chk'); F2.runPhaseB(); F2.beginPhase('C', 'chk');
+  WORLD.kill(WORLD.defenderUnits()[0].uid, 'chk_clear');       // 制造 defenderLost=1
+  WORLD.waveState().cursor = WORLD.WAVES().length;             // wavesExhausted 真分量①（处理态谓词权威=WORLD 波次游标；D⑤ 只做 dbe 镜像）
+  F2.beginPhase('D', 'chk'); F2.runPhaseD();                   // D④：wavesExhausted ∧ 清场（攻方 0）→ WIN
+  var won = seen.filter(function (p) { return p.reason === 'WAVES_CLEARED'; });
+  if (won.length !== 1 || !buy || !buy.ok || F2.state().phase !== 'END_WIN') return false;
+  var fr = C6.endReportFrozen();
+  if (!fr || fr.outcome !== 'WIN') return false;
+  return won[0].stats === fr.stats &&
+    won[0].stats.spentTotal === TABLES.economy.cost.deploy.garrisonSquad &&
+    won[0].stats.defenderLost === 1 && won[0].stats.attackerKilled === 0 &&
+    won[0].stats.farmTotal >= TABLES.economy.income.farmBasePerTurn &&
+    typeof won[0].stats.lootTotal === 'number' && typeof won[0].stats.supplyTotal === 'number' &&
+    won[0].turn === fr.endTurn && won[0].reason === fr.reason && fr.reason === 'WAVES_CLEARED';
+})(), 'won payload.stats=EndReport.stats 同一对象（S-3 冻结结构零重复计算）· 判胜点冻结后透传 · 波次游标簿记权威在 WORLD（D⑤ 镜像 dbe）');
+
+ok('VS5-F2.2 battle_lost 携带 stats：判负路径 payload.stats 与 endReportFrozen().stats 一致 ∧ 判负回合 D② 照常入账（C6-E2）', (function () {
+  fresh();
+  /* 真实判负链：C 相位把烽燧打到 0 → beacon_destroyed 旗标 → C→D 中断推进 → D④ 判负唯一点 → battle_lost。
+   * damageBeacon=F2.4 判负链的攻方写入侧（beaconHp≤0 判负，勿用 WORLD.kill 清守方——会触发清场歧义）。 */
+  var seen = []; F2.bus.on('battle_lost', function (p) { seen.push(p); });
+  F2.beginPhase('A', 'chk'); F2.beginPhase('B', 'chk'); F2.runPhaseB(); F2.beginPhase('C', 'chk');
+  WORLD.damageBeacon(WORLD.beaconHp() + 1, 'chk_lose');   // 打到 0 → onBeaconDestroyed 置旗标
+  F2.beginPhase('D', 'chk'); F2.runPhaseD();
+  var lost = seen.filter(function (p) { return p.reason === 'BEACON_FALLEN'; });
+  if (lost.length !== 1 || F2.state().phase !== 'END_LOSE') return false;
+  var fr = C6.endReportFrozen();
+  if (!fr || fr.outcome !== 'LOSE' || fr.endTurn !== 1) return false;
+  return lost[0].stats === fr.stats &&
+    lost[0].stats.farmTotal === fr.stats.farmTotal &&
+    lost[0].stats.spentTotal === fr.stats.spentTotal &&
+    lost[0].stats.attackerKilled === fr.stats.attackerKilled &&
+    lost[0].stats.defenderLost === fr.stats.defenderLost &&
+    lost[0].turn === fr.endTurn && lost[0].reason === fr.reason &&
+    typeof lost[0].stats.lootTotal === 'number' && typeof lost[0].stats.supplyTotal === 'number';
+})(), 'lost payload.stats=EndReport.stats 同一对象（S-3 冻结结构零重复计算）· 判负回合 D② 照常入账（C6-E2）· 判负优先于同回合清场（F2-E11）');
+
+console.log('\n[VS5-F3 · order_rejected 补发（C7 §3.3 契约事件）]');
+ok('VS5-F3.1 order_rejected：五闸拒绝逐单发出 {order, reason}，payload.order=下单原对象；成功单零事件（C7 §3.3 禁重复事件源）', (function () {
+  fresh();
+  /* 四条拒绝闸各取一（窗口/白名单/facing/资金）+ 成功单。资金闸=标准排水范式（VS4-C7.6 同款）。
+   * exec 返回值=回执 receipt；事件 payload.order=下单原对象（C7 §3.3 契约）——订单字面量须提变量比引用。 */
+  var rej = [];
+  F2.bus.on('order_rejected', function (p) { rej.push(p); });
+  var ordW  = { type: 'BUILD_FACILITY', cellId: '6_1_1', facilityKind: 'bedCrossbow', facing: '-x' };
+  var w  = C7.exec(ordW);                                                                                    // ① 窗口闸
+  F2.beginPhase('A', 'chk');
+  var ordOz = { type: 'BUILD_FACILITY', cellId: '1_0_0', facilityKind: 'bedCrossbow', facing: '-x' };
+  var oz = C7.exec(ordOz);                                                                                   // ② 白名单闸
+  var ordMf = { type: 'BUILD_FACILITY', cellId: '7_1_1', facilityKind: 'bedCrossbow' };
+  var mf = C7.exec(ordMf);                                                                                   // ③ facing 闸
+  var cost50 = TABLES.economy.cost.deploy.garrisonSquad, spent = 0;
+  while (C6.canAfford({ kind: 'DEPLOY_UNIT', templateId: 'garrison_squad' }) && spent < 20 * cost50) {
+    var dr = C7.exec({ type: 'DEPLOY_UNIT', cellId: '7_1_1', templateId: 'garrison_squad' });
+    if (!dr.ok) break;
+    spent += dr.charged;
+    C7.exec({ type: 'REDEPLOY_UNIT', unitId: dr.unitId, toCellId: 'OFFBOARD' });
+  }
+  var ordIns = { type: 'DEPLOY_UNIT', cellId: '7_1_1', templateId: 'garrison_squad' };
+  var ins = C7.exec(ordIns);                                                                                 // ④ 资金闸（真余额不足）
+  return !w.ok && w.reason === 'ILLEGAL_WINDOW' && !oz.ok && oz.reason === 'OUT_OF_ZONE' &&
+    !mf.ok && mf.reason === 'MISSING_FACING' && !ins.ok && ins.reason === 'INSUFFICIENT' &&
+    C6.treasury() < cost50 && C6.treasury() >= 0 &&
+    rej.length === 4 &&
+    rej[0].order === ordW && rej[0].reason === 'ILLEGAL_WINDOW' &&
+    rej[1].order === ordOz && rej[1].reason === 'OUT_OF_ZONE' &&
+    rej[2].order === ordMf && rej[2].reason === 'MISSING_FACING' &&
+    rej[3].order === ordIns && rej[3].reason === 'INSUFFICIENT';
+})(), 'C7 §3.3 {order, reason} 契约形状 · payload.order=下单原对象（引用同体）· 成功单零事件（receipt 仍为拒绝语义权威）');
+
+ok('VS5-F3.2 order_rejected 拒绝零污染对账：事件面拒绝与钱包/世界零变化逐单对应（修墙封闭+白名单外各一）', (function () {
+  fresh();
+  var rej = [];
+  F2.bus.on('order_rejected', function (p) { rej.push(p); });
+  var base = TABLES.economy.perLevel.L1.initialTreasury;
+  var uN = WORLD.aliveUnits().length;                        // 拒单前取基准（拒绝单零 spawn/零扣费）
+  F2.beginPhase('A', 'chk');                                 // 窗口闸最前（INIT 发 WALL_REPAIR 只会拿 ILLEGAL_WINDOW，故先入 A）
+  var ordWr = { type: 'WALL_REPAIR', connectorId: 'sl_L1_gate', deltaHp: 3 };                                // 恒拒绝扩展
+  var wr = C7.exec(ordWr);
+  var ordOz = { type: 'DEPLOY_UNIT', cellId: '5_0_1', templateId: 'garrison_squad' };                        // 垛口非部署区
+  var oz = C7.exec(ordOz);
+  return !wr.ok && wr.reason === 'WALL_REPAIR_UNAVAILABLE' && !oz.ok && oz.reason === 'OUT_OF_ZONE' &&
+    rej.length === 2 && rej[0].order === ordWr && rej[0].reason === 'WALL_REPAIR_UNAVAILABLE' &&
+    rej[1].order === ordOz && rej[1].reason === 'OUT_OF_ZONE' &&
+    C6.treasury() === base && WORLD.aliveUnits().length === uN;
+})(), 'WALL_REPAIR_UNAVAILABLE / OUT_OF_ZONE 同经 order_rejected 出口 · 钱包/世界零污染（C7 §2.7 零半执行在事件面成立）');
+
+console.log('\n[VS5-F5 · C4.5 装填进度 progress()（裁定书 §2.2-C-4 −1 版）]');
+ok('VS5-F5.1 progress() 数值锚点（L=2 实测）：t≤L 钳 0、t=L+1 读 0、t=L+2 首达 1、此后钳 1；未发射恒 1（表驱动 R 零硬编码）', (function () {
+  fresh();
+  var f = { lastFiredTurn: 2, state: 'RELOADING' };
+  var n = { lastFiredTurn: null };
+  var R = TABLES.facilities.bedCrossbow.reloadTurns;
+  /* R=1 下分子 (t−L−1) ∈ {…,−1,0,1,2} ÷ 1：进度恒整数，0→1 于 t=L+2 一次跳变——
+   * 首达 1 回合与 VS-7 翻转后恢复可射回合（t ≥ L+1+R）精确重合（−1 版设计意图）。 */
+  return R === 1 &&
+    C4.progress(f, 1) === 0 && C4.progress(f, 2) === 0 && C4.progress(f, 3) === 0 &&
+    C4.progress(f, 4) === 1 && C4.progress(f, 9) === 1 &&
+    C4.progress(n, 1) === 1 && C4.progress(n, 9) === 1;
+})(), 'clamp((t−L−1)/R,0,1) · R=1 → 0/1 两态、首达 1 于 t=L+2（翻转后与 canFireAt 精确重合）· 未发射=满装填 1（canFireAt 空戳真分支同构）');
+
+ok('VS5-F5.2 progress() 与 canFireAt 错拍排除：p≥1 ⇒ canFireAt 必真（lastFiredTurn×回合 200 组穷举）∧ 值域恒 [0,1] ∧ RELOADING 期单调不减', (function () {
+  fresh();
+  var badMismatch = 0, badMono = 0;
+  for (var L = 1; L <= 20; L++) {
+    for (var t = 1; t <= 10; t++) {
+      var f = { lastFiredTurn: L };
+      var p = C4.progress(f, t), can = C4.canFireAt(f, t);
+      if ((p >= 1 && !can) || p < 0 || p > 1) badMismatch++;               // 错拍排除 + 值域钳位
+      var pPrev = t > 1 ? C4.progress(f, t - 1) : 0;
+      if (t > L && p < pPrev) badMono++;                                   // 装填窗口内（t>L）单调不减
+    }
+  }
+  return badMismatch === 0 && badMono === 0;
+})(), '「进度 100% 但仍 RELOADING」结构排除（p≥1 ⇒ canFireAt 真对偶，VS-7 翻转后精确重合）· 单调不减');
 /* ---------- 汇总 ---------- */
-console.log('\n== 结果：' + pass + ' PASS / ' + fail + ' FAIL（21 回归 + 19 VS-4 新增 + 7 VS5-F1 新增）==');
+console.log('\n== 结果：' + pass + ' PASS / ' + fail + ' FAIL（21 回归 + 19 VS-4 新增 + 7 VS5-F1 新增 + 5 VS5-F2/F3/F5 新增）==');
 process.exitCode = fail ? 1 : 0;

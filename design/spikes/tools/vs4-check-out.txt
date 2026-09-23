@@ -60,4 +60,23 @@
   PASS  VS4-D3 全局重放确定性扩展：带建设指令的两局逐回合快照逐字节一致（C6+C7 零 F4 消费链验证）  —— 建设+排水+重置全链路双局一致（A 相位指令面零 RNG → 指令序一致 ⇒ 终态一致）
   PASS  VS4-D4 E2E 扩展：注入建设后全链路 40 回合内仍必收敛终局 ∧ 零 illegal_transition ∧ 余额恒 ≥0  —— 经济注入不破坏终局收敛（可玩性底线）· 破产保护 INV-C6-1
 
-== 结果：40 PASS / 0 FAIL（21 回归 + 19 VS-4 新增）==
+[VS5-F1 · F4 规范字节流 + 三接口（存档批前置）]
+  PASS  VS5-F1.1 FNV-1a-64 双实现互证（BE-2）：BigInt 参考版与 split-mul 版在已知官方向量 + 300 随机字节串上逐位一致  —— 官方向量 foobar=85944171f73967e8 锚定 · 300 确定性伪随机串双实现逐位一致
+  PASS  VS5-F1.2 S 形状（F4 §2.5）：init 即 header-only 14B（magic "F4L0G" + logVer=1 + seedWord LE + entryCount=0），空流合法  —— magic=F4L0G · logVer=1 · seedWord=expand(seed) 小端 · entryCount=0（空流 checksum 恒可算 F4 §2.5）
+  PASS  VS5-F1.3 条目 10B 定长与链自洽（F4.5）：rand×5 后 14+50B，逐条 opTag=0x01/domainTag=0x01/before→after 链无缝且末 after=cursor  —— S=header14+10B/条 · e.after=e.before+1 ∧ e[i+1].before=e[i].after ∧ cursor=eₙ.after（F4.5 全式）
+  PASS  VS5-F1.4 checksum（F4.4）：checksumOf(S)=hex16(FNV1a64(S))，确定性可复现，且对 1 字节差异敏感  —— 幂等 · 16 位小写 hex 前导零保留 · 单字节翻转必变签名 · 空流良定义
+  PASS  VS5-F1.5 snapshot/restore 往返（BE-6「打过的骰子不重摇」）：restore 后继续同指令产出与原会话尾逐位一致 ∧ O(1) 直读不重放步进  —— restore(snapshot) 后同指令 → 骰序逐位一致（C5-E15 兑现）· 直读恢复非重导出
+  PASS  VS5-F1.6 损坏注入矩阵（BE-3 子集）：翻条目字节/改 cursor 不改 log/截断末条/entryCount 篡改/换 seed 五路径全拒载零静默（F4-E5）  —— 全部路径抛 [F4 restore 拒载]（F4-E4 必选分部纪律：缺字段/脏档零静默通过）
+  PASS  VS5-F1.7 INV-F4-2 四角互证：step^cursor(expand(seed))=state 断言在位——state 单点篡改必被拒载  —— seed/state/cursor/log 四者分别篡改后单点自洽不可过（校验模式断言随 restore 常开）
+  PASS  VS5-F2.1 battle_won 携带 stats：payload.stats 与 endReportFrozen().stats 同一冻结结构逐键一致（真实判胜链 D④）  —— won payload.stats=EndReport.stats 同一对象（S-3 冻结结构零重复计算）· 判胜点冻结后透传 · 波次游标簿记权威在 WORLD（D⑤ 镜像 dbe）
+  PASS  VS5-F2.2 battle_lost 携带 stats：判负路径 payload.stats 与 endReportFrozen().stats 一致 ∧ 判负回合 D② 照常入账（C6-E2）  —— lost payload.stats=EndReport.stats 同一对象（S-3 冻结结构零重复计算）· 判负回合 D② 照常入账（C6-E2）· 判负优先于同回合清场（F2-E11）
+
+[VS5-F3 · order_rejected 补发（C7 §3.3 契约事件）]
+  PASS  VS5-F3.1 order_rejected：五闸拒绝逐单发出 {order, reason}，payload.order=下单原对象；成功单零事件（C7 §3.3 禁重复事件源）  —— C7 §3.3 {order, reason} 契约形状 · payload.order=下单原对象（引用同体）· 成功单零事件（receipt 仍为拒绝语义权威）
+  PASS  VS5-F3.2 order_rejected 拒绝零污染对账：事件面拒绝与钱包/世界零变化逐单对应（修墙封闭+白名单外各一）  —— WALL_REPAIR_UNAVAILABLE / OUT_OF_ZONE 同经 order_rejected 出口 · 钱包/世界零污染（C7 §2.7 零半执行在事件面成立）
+
+[VS5-F5 · C4.5 装填进度 progress()（裁定书 §2.2-C-4 −1 版）]
+  PASS  VS5-F5.1 progress() 数值锚点（L=2 实测）：t≤L 钳 0、t=L+1 读 0、t=L+2 首达 1、此后钳 1；未发射恒 1（表驱动 R 零硬编码）  —— clamp((t−L−1)/R,0,1) · R=1 → 0/1 两态、首达 1 于 t=L+2（翻转后与 canFireAt 精确重合）· 未发射=满装填 1（canFireAt 空戳真分支同构）
+  PASS  VS5-F5.2 progress() 与 canFireAt 错拍排除：p≥1 ⇒ canFireAt 必真（lastFiredTurn×回合 200 组穷举）∧ 值域恒 [0,1] ∧ RELOADING 期单调不减  —— 「进度 100% 但仍 RELOADING」结构排除（p≥1 ⇒ canFireAt 真对偶，VS-7 翻转后精确重合）· 单调不减
+
+== 结果：53 PASS / 0 FAIL（21 回归 + 19 VS-4 新增 + 7 VS5-F1 新增 + 5 VS5-F2/F3/F5 新增）==

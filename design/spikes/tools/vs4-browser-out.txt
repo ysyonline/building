@@ -1,8 +1,8 @@
 browser: C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
 page:    file:///D:/code/building/design/spikes/graybox-vs.html
-port:    9335   profile: d:\code\building\design\spikes\tools\_edge-profile-vs4
+port:    9335   profile: D:\code\building\design\spikes\tools\_edge-profile-vs4
 mode:    per-check target isolation · eval timeout 45s
-edge pid=8544
+edge pid=1252
 cdp ready: Edg/120.0.2210.91
 bridge probe: {"v4":"object","v3":"object","same":false,"keys":["boot","determinism","hitRate","be2","aiTiming","economy","loot","c7","c4","dPhase","vs4all","metrics","smoke"]}
 NOTE: VS-3 旧桥 window.VS3Selftest 仍在页面内（graybox-vs.html:2551）；本脚本全部走 VS4Selftest，勿混淆。
@@ -11,13 +11,13 @@ sig probe (无参调用实测):
   hitRate      -> {"hits":0,"rate":null,"expected":0.75,"dev":null}
   be2          -> {"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6}
   determinism  -> {"same":true,"length":3470,"lines":13}
-  aiTiming     -> {"avg":0.27750000000232833,"worst":0.8000000002793968,"budget":10,"pass":true}
+  aiTiming     -> {"avg":0.3625,"worst":1,"budget":10,"pass":true}
 --- VS-3 继承口 ---
 PASS  boot           {"ok":true,"cells":63,"connectors":3,"seed":"vs-l1-seed-01"}
 PASS  determinism    {"same":true,"length":2624,"lines":11}
 PASS  hitRate        {"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001}
 PASS  be2            {"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6}
-PASS  aiTiming       {"avg":0.3775000000023283,"worst":1.7999999998137355,"budget":10,"pass":true}
+PASS  aiTiming       {"avg":0.5099999999627471,"worst":2.199999999254942,"budget":10,"pass":true}
 --- VS-4 新增口 ---
 PASS  economy        {"checks":[{"name":"d2_farm","pass":true,"detail":"farm=20"},{"name":"d2_supply","pass":true,"detail":"supply=20"},{"name":"d2_total","pass":true,"detail":"total=40"},{"name":"d2_treasury_after","pass":true,"detail":"after=520"},{"name":"d2_idempotent","pass":true,"detail":"{\"ok\":false,\"reason\":\"IDEMPOTENT_REJECT\",\"turn\":1,\"turnLastSettled\":1}"},{"name":"charge_window","pass":true,"detail":"{\"ok\":false,\"
         checks(7): d2_farm, d2_supply, d2_total, d2_treasury_after, d2_idempotent, charge_window, charge_ok_atomic
@@ -29,7 +29,7 @@ PASS  dPhase         {"checks":[{"name":"d2_before_d3","pass":true,"detail":"d2�
         checks(5): d2_before_d3, reinforce_arrived, reinforce_free, report_once, report_stats
 --- 端到端 / 聚合 ---
 PASS  smoke          {"ok":true,"end":"END_LOSE","phase":"END_LOSE","turns":32}
-PASS  metrics        {"be2":{"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6},"hitRate":{"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001},"aiTiming":{"avg":0.3525000000256114,"worst":0.8999999999068677,"budget":10,"pass":true},"determinism":{"same":true,"length":2624,"lines":11}}
+PASS  metrics        {"be2":{"main":0.22222222222222227,"feint":0.16666666666666669,"pass":true,"attackers":6},"hitRate":{"n":2000,"hits":1522,"rate":0.761,"expected":0.75,"dev":0.01100000000000001},"aiTiming":{"avg":0.46499999999068675,"worst":1.400000000372529,"budget":10,"pass":true},"determinism":{"same":true,"length":2624,"lines":11}}
 --- UI 存活 ---
 PASS  uiButtons      {"ok":true,"missing":[]}
 PASS  uiButtonsVs4   {"ok":true,"missing":[]}

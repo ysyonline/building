@@ -286,12 +286,12 @@ var F2 = (function () {
       win = exhausted && clear;                // 双分量不可拆（F2 §2.5）
     }
     if (lose) {
-      if (hooks.finalize) hooks.finalize('LOSE', 'BEACON_FALLEN');   /* [VS-4] C6 finalizeReport（D② 经济已入账后冻结） */
-      st.phase = 'END_LOSE'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_lost', { reason: 'BEACON_FALLEN', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_LOSE', turn: st.turn });
+      var finL = hooks.finalize ? hooks.finalize('LOSE', 'BEACON_FALLEN') : null;   /* [VS-4] C6 finalizeReport（D② 经济已入账后冻结） */
+      st.phase = 'END_LOSE'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_lost', { reason: 'BEACON_FALLEN', turn: st.turn, stats: (finL && finL.report ? finL.report.stats : null) }); bus.publish('phase_enter', { phase: 'END_LOSE', turn: st.turn });
     }
     else if (win) {
-      if (hooks.finalize) hooks.finalize('WIN', 'WAVES_CLEARED');
-      st.phase = 'END_WIN'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_won', { reason: 'WAVES_CLEARED', turn: st.turn }); bus.publish('phase_enter', { phase: 'END_WIN', turn: st.turn });
+      var finW = hooks.finalize ? hooks.finalize('WIN', 'WAVES_CLEARED') : null;   /* [VS-5·F-2] BattleEndReport 随 payload.stats 透传（F2 §3.3/C6 §3.3；数据源=已冻结结构，零重复计算） */
+      st.phase = 'END_WIN'; bus.publish('phase_exit', { phase: 'D', turn: st.turn }); bus.publish('battle_won', { reason: 'WAVES_CLEARED', turn: st.turn, stats: (finW && finW.report ? finW.report.stats : null) }); bus.publish('phase_enter', { phase: 'END_WIN', turn: st.turn });
     }
     // D⑤ 波次游标簿记前移（C9 advanceCursor；镜像写 dbe.waveCursor）
     if (hooks.d5AdvanceCursor) st.dbe.waveCursor = hooks.d5AdvanceCursor(st.turn);
@@ -1878,6 +1878,11 @@ var C7 = (function () {
   function exec(order) {
     var turn = F2.state() ? F2.state().turn : 0;
     var receipt = dispatch(turn, order);
+    /* [VS-5·F-3] order_rejected 补发（C7 §3.3 契约 {order, reason}）：六指令×五闸的拒绝路径全天然存在
+     * （窗口/白名单/格型/互斥/facing/容量/阵营/层位/资金），本处为唯一出口、不做二次闸——
+     * 拒绝语义仍以 receipt 为权威，事件只做负样本广播；成功路径零自有事件（C7 §3.3 禁重复事件源）。
+     * UI 呈现面（P3 行内错误反馈）挂 VS-5 视觉批，本批先补契约事件。 */
+    if (receipt && receipt.ok === false) F2.bus.publish('order_rejected', { order: order, reason: receipt.reason || '' });
     return logOrder(turn, order, receipt);
   }
   function dispatch(turn, order) {
@@ -2018,6 +2023,17 @@ var C4 = (function () {
   function setupReadyAt(f, t) {
     return t >= (f.createdTurn || 0) + (T.facilities.bedCrossbow.setupTurns || 1);
   }
+  /* C4.5 装填进度（纯函数，VS-5·F-5 销账）：progress = clamp((t − lastFiredTurn − 1) / reloadTurns, 0, 1)。
+   * 口径=vs4-tech-adjudication §2.2-C-4（−1 版）：进度首达 1 的回合与 VS-7 翻转后恢复可射回合精确重合，
+   * 届时本函数零改动即对齐；当前字面式（t ≥ L+R 即可射）下读数保守——只落后不超前，
+   * 结构上排除「进度 100% 而仍 RELOADING」错拍（p≥1 ⇒ t≥L+1+R ⇒ canFireAt 必真）。
+   * 未发射（lastFiredTurn 空）= 满装填恒 1（与 canFireAt 空戳真分支同构，环读数不得与就绪谓词矛盾）。
+   * 数据源先于表现层：本批不画环，仅落地数据面（K1 零自有状态，纯推导）。 */
+  function progress(f, t) {
+    if (f.lastFiredTurn === null || f.lastFiredTurn === undefined) return 1;
+    var p = (t - f.lastFiredTurn - 1) / T.facilities.bedCrossbow.reloadTurns;
+    return p < 0 ? 0 : (p > 1 ? 1 : p);
+  }
   function volleyedThisTurn() { return _lastVolleyId === curTurn() + '_V'; }
   var _lastVolleyId = null;
   /* 齐射窗口（C4 §2.1）：物化可射床弩（facilityId 字典序）→ 逐具 strike → 发 facility_volley。
@@ -2096,7 +2112,7 @@ var C4 = (function () {
     F2.bus.publish('stock_dropped', { stockId:stockId, ladderId:ladderId, turn:curTurn() });
     return { ok:true, consumed:true, report:rep };
   }
-  return { fireVolley:fireVolley, canFireAt:canFireAt, setupReadyAt:setupReadyAt, canDrop:canDrop, drop:drop,
+  return { fireVolley:fireVolley, canFireAt:canFireAt, setupReadyAt:setupReadyAt, progress:progress, canDrop:canDrop, drop:drop,
            volleyedThisTurn:volleyedThisTurn, lastVolleyId:function () { return _lastVolleyId; },
            resetRuntime:function () { _lastVolleyId = null; } };   /* [VS-4] 去重戳随世界重建复位（重放/浏览器重跑幂等；K1 逻辑权威仍为推导式） */
 })();
